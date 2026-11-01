@@ -1,4 +1,8 @@
-"""A very small RomM API client (standard library only)."""
+"""A very small RomM API client.
+
+Standard library only: Decky runs the backend on its own bundled Python, where extra packages
+can't be installed, and the game launcher runs on the system Python, which may not have them either.
+"""
 import json
 import os
 import ssl
@@ -14,6 +18,7 @@ _CA_FILES = ("/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/certs/ca-certificates
 
 
 def _ssl_context():
+    """TLS settings that trust the system's certificate store, wherever this distro keeps it."""
     for ca in _CA_FILES:
         if os.path.exists(ca):
             return ssl.create_default_context(cafile=ca)
@@ -21,12 +26,17 @@ def _ssl_context():
 
 
 class RomMError(Exception):
+    """Anything that went wrong talking to RomM, with a message that can be shown to the user.
+    Callers catch this one type to mean "RomM is unreachable or said no", as opposed to a bug."""
+
     def __init__(self, message, status=None):
         super().__init__(message)
         self.status = status  # HTTP status from RomM, e.g. 404 when a game was deleted
 
 
 class RomM:
+    """One RomM server, reached with a client API token (sent as a Bearer token on every request)."""
+
     def __init__(self, url, token=""):
         self.url = url.rstrip("/")
         self.token = token
@@ -35,6 +45,7 @@ class RomM:
 
     @classmethod
     def from_settings(cls):
+        """The server the user paired with in the panel (settings.json), or RomMError if none."""
         s = config.load("settings")
         if not s.get("url") or not s.get("token"):
             raise RomMError("Not connected to RomM yet")
@@ -43,6 +54,8 @@ class RomM:
     # ---------- plumbing ----------
 
     def _open(self, method, path, params=None, body=None, headers=None, timeout=None):
+        """Send one request and return the open response. HTTP and network errors become RomMError,
+        so every caller only has one kind of failure to handle. Parameters set to None are left out."""
         url = self.url + path
         if params:
             url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None}, doseq=True)
@@ -58,16 +71,19 @@ class RomM:
             raise RomMError(f"Can't reach RomM: {e.reason}") from None
 
     def get(self, path, timeout=None, **params):
+        """GET a JSON endpoint; keyword arguments become the query string."""
         with self._open("GET", path, params, timeout=timeout) as r:
             return json.load(r)
 
     def post_json(self, path, data):
+        """POST `data` as JSON and return RomM's JSON answer."""
         body = json.dumps(data).encode()
         with self._open("POST", path, body=body, headers={"Content-Type": "application/json"}) as r:
             return json.load(r)
 
     def upload(self, path, params, field, filename, data):
-        """multipart/form-data POST of a single file."""
+        """POST one file as multipart/form-data (how RomM takes save and state uploads).
+        Built by hand because the standard library has no multipart encoder."""
         boundary = uuid.uuid4().hex
         body = (
             f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="{filename}"\r\n'
@@ -89,6 +105,8 @@ class RomM:
                     progress(done, total)
 
     def fetch_bytes(self, url_or_path, timeout=None):
+        """A small file (cover art, a screenshot, a save) as bytes. RomM gives resource paths
+        both with and without the leading slash, so either is accepted."""
         path = url_or_path if url_or_path.startswith("/") else "/" + url_or_path
         with self._open("GET", path, timeout=timeout) as r:
             return r.read()
@@ -100,19 +118,25 @@ class RomM:
         return self.post_json("/api/client-tokens/exchange", {"code": code})["raw_token"]
 
     def collections(self):
-        regular = self.get("/api/collections")
-        smart = self.get("/api/collections/smart")
-        out = [{"kind": "collection", "id": c["id"], "name": c["name"], "count": len(c.get("rom_ids") or [])} for c in regular]
-        out += [{"kind": "smart", "id": c["id"], "name": c["name"], "count": len(c.get("rom_ids") or [])} for c in smart]
+        """Regular and smart collections together, sorted by name, as the panel lists them."""
+        out = []
+        for kind, endpoint in (("collection", "/api/collections"), ("smart", "/api/collections/smart")):
+            for c in self.get(endpoint):
+                out.append({"kind": kind, "id": c["id"], "name": c["name"], "count": len(c.get("rom_ids") or [])})
         return sorted(out, key=lambda c: c["name"].lower())
 
     def platforms(self):
-        out = [{"kind": "platform", "id": p["id"], "name": p.get("custom_name") or p["name"], "count": p["rom_count"]}
-               for p in self.get("/api/platforms") if p.get("rom_count")]
+        """Platforms that have at least one game, sorted by name (the user's own name for it, if set)."""
+        out = []
+        for p in self.get("/api/platforms"):
+            if p.get("rom_count"):
+                out.append({"kind": "platform", "id": p["id"], "name": p.get("custom_name") or p["name"], "count": p["rom_count"]})
         return sorted(out, key=lambda p: p["name"].lower())
 
     def roms(self, kind, key):
-        """Games in a collection, smart collection or platform, or matching a search."""
+        """Games in a collection, smart collection or platform, or matching a search.
+        One request with a high limit: the panel shows a whole list at once, and leaving out the
+        extras RomM can add (character index, filter values) keeps the answer small."""
         param = {"collection": "collection_id", "smart": "smart_collection_id",
                  "platform": "platform_ids", "search": "search_term"}[kind]
         page = self.get(
@@ -122,6 +146,7 @@ class RomM:
         return page["items"]
 
     def rom(self, rom_id):
+        """Everything RomM has on one game (metadata, files, the user's saves, notes...)."""
         return self.get(f"/api/roms/{rom_id}")
 
     def me(self):
@@ -129,8 +154,9 @@ class RomM:
         return self.get("/api/users/me")
 
     def assets(self, kind, rom_id):
-        """kind is 'saves' or 'states'."""
+        """The user's saves or save states for a game in RomM. kind: 'saves' or 'states'."""
         return self.get(f"/api/{kind}", rom_id=rom_id)
 
     def firmware(self, platform_id):
+        """BIOS and firmware files RomM holds for a platform."""
         return self.get("/api/firmware", platform_id=platform_id)

@@ -14,8 +14,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Steam runs this with the system Python, outside Decky, so the plugin's modules are added by hand
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "py_modules"))
-from romm_deck import config, library, presets, saves, session  # noqa: E402
+from romm_deck import config, library, presets, procs, saves, session  # noqa: E402
 from romm_deck.api import RomM, RomMError  # noqa: E402
 
 
@@ -23,16 +24,20 @@ LOG_FILE = (config.LOG_DIR if config.LOG_DIR.exists() else config.SETTINGS_DIR) 
 
 
 def setup_logging():
+    """Log to launch.log (Steam shows nothing of what the launcher does, so this is the only record).
+    Past 5 MB the old log is kept once as launch.old.log and a new one started."""
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    if LOG_FILE.is_file() and LOG_FILE.stat().st_size > 5_000_000:  # keep it from growing forever
+    if LOG_FILE.is_file() and LOG_FILE.stat().st_size > 5_000_000:
         LOG_FILE.replace(LOG_FILE.with_suffix(".old.log"))
     logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
 def pull_saves(rom_id, game):
+    """Bring the game's saves up to date from RomM before it starts, and say how it went.
+    Never stops the game: with RomM unreachable it starts with the saves on this PC."""
     try:
         client = RomM.from_settings()
-        client.timeout = 10
+        client.timeout = 10  # a dead server mustn't keep the player waiting long
         r = saves.sync(client, rom_id, game, "pull")
         n = r["down"]
         config.notify("Saves synced", f"{game['name']}: pulled {n} save file{'s' if n != 1 else ''} from RomM"
@@ -45,13 +50,8 @@ def pull_saves(rom_id, game):
         config.notify("Saves not synced", f"{game['name']}: {e}")
 
 
-def _emulator_signals():
-    """The emulator itself should close normally when Steam asks it to."""
-    signal.signal(signal.SIGTERM, signal.SIG_DFL)
-    signal.signal(signal.SIGHUP, signal.SIG_DFL)
-
-
 def main():
+    """Sync, play, sync. Returns the emulator's exit code (Steam ignores it, the log keeps it)."""
     setup_logging()
     rom_id = str(library.resolve(sys.argv[1]))  # the card may still carry an old RomM id
     game = library.installed().get(rom_id)
@@ -85,7 +85,7 @@ def main():
     with open(LOG_FILE, "a") as out:
         proc = subprocess.Popen(cmd, env=env, cwd=cwd if cwd and Path(cwd).is_dir() else None,
                                 stdout=out, stderr=subprocess.STDOUT,
-                                preexec_fn=_emulator_signals)
+                                preexec_fn=procs.default_close_signals)
         session.start(rom_id, game, before, [os.getpid(), proc.pid])
         code = proc.wait()
     config.log.info("%s closed (exit code %s)", game["name"], code)
