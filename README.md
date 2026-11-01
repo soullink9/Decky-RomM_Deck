@@ -1,6 +1,8 @@
 # RomM Deck
 
 > **Disclosure:** written with the help of Claude (Anthropic). Personal project; use at your own risk and back up your saves.
+>
+> **Beta (0.5.0).** Tested on a ROG Xbox Ally X with Bazzite, EmuDeck and RomM 5.4.1.
 
 A Decky Loader plugin for a Bazzite/SteamOS machine running EmuDeck:
 
@@ -36,19 +38,8 @@ A Decky Loader plugin for a Bazzite/SteamOS machine running EmuDeck:
 
 ## How it works
 
-| Piece | File |
-|---|---|
-| Quick Access panel | `src/index.tsx` (Steam cards: `src/cards.ts`) |
-| Panel ↔ Python methods | `main.py` |
-| RomM API | `py_modules/romm_deck/api.py` |
-| Platform → folder / emulator / launch command | `py_modules/romm_deck/systems.py` |
-| Download, remove, BIOS | `py_modules/romm_deck/library.py` |
-| Save sync | `py_modules/romm_deck/saves.py` |
-| Auto-load states switch | `py_modules/romm_deck/autoload.py` |
-| Controller presets | `py_modules/romm_deck/presets.py` |
-| Motion sensor, calibration, motion server | `py_modules/romm_deck/motion.py`, `bin/romm_motion.py` |
-| What a Steam card runs | `bin/romm_launch.py` |
-| After a game closes (however it's closed) | `py_modules/romm_deck/session.py` |
+[ARCHITECTURE.md](ARCHITECTURE.md) describes the code: its parts, how data moves between them, and the
+files it keeps. In short:
 
 Each RomM Deck card runs `python3 bin/romm_launch.py <rom id>`, which pulls saves, starts the game, then
 pushes whatever save files changed. A taken-over card runs the command it had before (kept in
@@ -92,5 +83,12 @@ title ID from RomM (or a `[0100…]` tag in the file name).
 
 ```sh
 npm install        # just esbuild
+npm test           # every test suite
 npm run package    # builds dist/index.js and romm-deck.zip
 ```
+
+## Contributing, changes, license
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to report a problem, set up, test and send a change
+- [CHANGELOG.md](CHANGELOG.md): what's in each release
+- [LICENSE](LICENSE): BSD 3-Clause
