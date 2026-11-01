@@ -20,7 +20,7 @@ export type Activity = { at: number; kind: string; title: string; body: string; 
 export type Details = {
   description: string; developers: string[]; publishers: string[]; release_date: number | null;
   rating: number | null; features: number[]; facts: [string, string][];
-  links?: [string, string][]; activity?: Activity[]; screenshots?: string[];  // (missing in ones kept by older versions)
+  links?: [string, string][]; activity?: Activity[]; screenshots?: string[];  // (optional: not every game has them)
 };
 
 const w = window as any;

@@ -18,7 +18,6 @@ plan() that says which settings to change.
 import json
 import os
 import re
-import shutil
 import signal
 import subprocess
 import sys
@@ -32,10 +31,10 @@ DMI = Path("/sys/class/dmi/id")
 MOTION_SERVER = config.PLUGIN_DIR / "bin" / "romm_motion.py"
 BACKUP = "controller-backup"  # settings/controller-backup.json while a preset is applied
 STATUS = "controller-status"  # how the last game with a preset went, for the game page
-# EmuDeck's Steam Deck motion server (an earlier version of this plugin installed it on the Ally).
-# It can't see the Ally's motion under InputPlumber, and would hold the port while running.
-OLD_SERVER = config.HOME / "sdgyrodsu"
-OLD_SERVICE = "sdgyrodsu.service"
+# EmuDeck's Steam Deck motion server (SteamDeckGyroDSU), if the user installed it. It can't see
+# the Ally's motion under InputPlumber, but while it runs it holds the motion port (26760), so it's
+# paused for the length of a game that needs our server, then started again.
+DECK_MOTION_SERVICE = "sdgyrodsu.service"
 
 H, FP = config.HOME, config.HOME / ".var/app"
 CEMU_PROFILES = [H / ".config/Cemu/controllerProfiles/controller0.xml",
@@ -174,7 +173,6 @@ def set_enabled(platform, on):
     s = config.load("settings")
     s.setdefault("controller_presets", {})[platform] = bool(on)
     config.save("settings", s)
-    remove_old_server()
     if not on:
         restore()
 
@@ -182,28 +180,6 @@ def set_enabled(platform, on):
 def status(platform):
     """For the game page: is motion calibrated, and how did the last game go."""
     return {"calibrated": motion.calibrated(), "last": config.load(STATUS).get(platform, "")}
-
-
-def remove_old_server():
-    """Remove the Steam Deck motion server if an earlier version of the plugin installed it."""
-    s = config.load("settings")
-    if not s.get("motion_server_ours"):
-        return
-    _systemctl("disable", "--now", OLD_SERVICE)
-    uninstaller = OLD_SERVER / "uninstall.sh"
-    if uninstaller.is_file():
-        subprocess.run(["bash", str(uninstaller)], env=_user_env(), capture_output=True, timeout=120)
-    unit = config.HOME / ".config/systemd/user" / OLD_SERVICE
-    if unit.is_file():
-        unit.unlink()
-        config.removed_log(f"old motion server service: {unit}")
-    if OLD_SERVER.is_dir():
-        shutil.rmtree(OLD_SERVER)
-        config.removed_log(f"old motion server: {OLD_SERVER}")
-    _systemctl("daemon-reload")
-    s = config.load("settings")
-    s.pop("motion_server_ours", None)
-    config.save("settings", s)
 
 
 # ---------- around a game (bin/romm_launch.py) ----------
@@ -220,14 +196,13 @@ def apply(game, launcher_pid=None):
                                            if platform in d["presets"]), None)
     if not preset:
         return None
-    remove_old_server()
     backup = {}
     if preset["motion"]:
         if not motion.calibrated():
             return _report(platform, False, "Not calibrated yet: press Calibrate motion on the game's page")
-        if _systemctl("is-active", OLD_SERVICE).strip() == "active":  # it would hold the motion port
-            _systemctl("stop", OLD_SERVICE)
-            backup["_restart_old_service"] = True
+        if _systemctl("is-active", DECK_MOTION_SERVICE).strip() == "active":  # it would hold the motion port
+            _systemctl("stop", DECK_MOTION_SERVICE)
+            backup["_restart_deck_motion_service"] = True
         config.save(BACKUP, backup)
         ok, why = _start_server(launcher_pid or os.getpid(), backup)
         if not ok:
@@ -260,18 +235,10 @@ def restore():
                 _set(c, c["before"])
         except (OSError, ValueError):
             config.log.exception("Couldn't put back %s in %s", c.get("key"), c.get("path"))
-    for path, before in backup.items():  # left by an earlier version of the plugin (Ryujinx only)
-        if not path.startswith("_"):
-            for i, m in before.items():
-                c = _change("ryujinx", path, int(i), m, DSU_MOTION)
-                if _get(c) == DSU_MOTION:
-                    _set(c, m)
     if backup.get("_motion_server"):
         _stop(*backup["_motion_server"])
-    if backup.get("_restart_old_service"):
-        _systemctl("start", OLD_SERVICE)
-    if backup.get("_server_was_running") is False:  # left by an earlier version of the plugin
-        _systemctl("stop", OLD_SERVICE)
+    if backup.get("_restart_deck_motion_service"):
+        _systemctl("start", DECK_MOTION_SERVICE)
     config.save(BACKUP, {})
     config.log.info("Controller settings restored")
 
