@@ -207,31 +207,9 @@ def _file_name(rom):
     return rom["fs_name"]
 
 
-def _fix_missing_extension(rom_id, rom):
-    """Repair a game an older version saved without its extension: rename it to its real name."""
-    g = installed().get(str(rom_id))
-    if not g:
-        return
-    path, name = Path(g["path"]), _file_name(rom)
-    if path.is_file() and not path.suffix and Path(name).suffix and path.name != name:
-        target = path.with_name(name)
-        if target.exists():
-            return
-        path.rename(target)
-        with config.editing("installed") as games:
-            if g := games.get(str(rom_id)):
-                g["path"] = str(target)
-                if g.get("launch") == str(path):
-                    g["launch"] = str(target)
-        config.log.info("Renamed %s to %s (it was saved without its extension)", path.name, name)
-
-
 def find_existing(rom_list):
     """Add games from RomM that are already in Emulation/roms (put there before this plugin)
     to installed.json. Returns the ids now known to be on this PC."""
-    for rom in rom_list:
-        if str(rom["id"]) in installed():
-            _fix_missing_extension(rom["id"], rom)
     games = installed()
     found = {}
     for rom in rom_list:

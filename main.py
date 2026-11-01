@@ -17,7 +17,6 @@ class Plugin:
         self.downloading = {}  # rom_id -> percent
         self.download_names = {}  # rom_id -> what the home page calls it while it downloads
         self._cover_failed = set()
-        (config.SETTINGS_DIR / "metadata.json").unlink(missing_ok=True)  # (left by a version that tried Steam pages)
         self.loop.create_task(self.game_closed())  # a game left unfinished by a crash or power-off
         if not getattr(self, "_notes", None):
             self._notes = self.loop.create_task(self._pass_on_notifications())
@@ -116,7 +115,7 @@ class Plugin:
             entry = kept.get(rid)
             if entry:
                 out[str(g["app_id"])] = {**entry["details"], "activity": self._with_last_sync(rid, entry["details"])}
-            if not entry or time.time() - entry.get("at", 0) > 7 * 86400 or "activity" not in entry["details"]:
+            if not entry or time.time() - entry.get("at", 0) > 7 * 86400:
                 missing.append(rid)
         self._refresh_details(missing)
         return out

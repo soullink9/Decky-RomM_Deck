@@ -396,9 +396,6 @@ async def test():
     top = (await P.steam_details())["4000001"]["activity"][0]
     check(top["kind"] == "sync-failed" and top["body"] == "Couldn't reach RomM", f"the last save sync on this PC is in Activity too: {top}")
     S4._mark(1, True)
-    old = config.load("steam-details"); del old["1"]["details"]["activity"]; config.save("steam-details", old)
-    await P.steam_details()
-    check(await next_details() is not None, "details kept by an older version (no Activity yet): fetched again straight away")
     M.ME["ra_progression"] = None
     kept = config.load("steam-details")
     check("1" in kept and (await P.steam_details())["4000001"]["rating"] == 85, "…kept on the PC, so they're there straight away next time")
@@ -741,7 +738,7 @@ async def test():
     listed = {r["id"]: r["installed"] for r in await P.roms("platform", 1) if r["name"] == "Dup Game"}
     check(sorted(listed.values()) == [False, True], f"a file is linked to only one of two duplicate RomM entries: {listed}")
     owner = [k for k, v in listed.items() if v][0]; other = [k for k, v in listed.items() if not v][0]
-    games = config.load("installed"); games[str(other)] = {**games[str(owner)]}; config.save("installed", games)  # as older versions could
+    games = config.load("installed"); games[str(other)] = {**games[str(owner)]}; config.save("installed", games)  # (a hand-edited or damaged installed.json)
     r = await P.uninstall(other)
     check(not r["ok"] and "also holds" in r["error"] and (gba / "Dup Game.gba").exists(), f"…and if both claim it, Remove refuses: {r.get('error')}")
     games = config.load("installed"); del games[str(other)]; config.save("installed", games)
@@ -826,13 +823,6 @@ async def test():
     g = config.load("installed")["110"]
     check(g["launch"].endswith("roms/switch/Astral Chain [01007300020FA000][v0].nsp") and not (sdir / "Astral Chain").exists(),
           f"downloaded under its real file name, with the extension: {g['launch']}")
-    # one saved the old way (no extension) gets repaired
-    target = Path(g["launch"]); target.rename(sdir / "Astral Chain")
-    games = config.load("installed"); games["110"]["path"] = games["110"]["launch"] = str(sdir / "Astral Chain"); config.save("installed", games)
-    await P.game(110)
-    g = config.load("installed")["110"]
-    check(target.is_file() and not (sdir / "Astral Chain").exists() and g["launch"] == str(target) and g["path"] == str(target),
-          "a file saved without its extension is renamed to its real name")
 
     # ======== device controller preset (Switch on a ROG Ally) ========
     from romm_deck import presets as PR, motion as MO
@@ -857,15 +847,8 @@ async def test():
     launch(70)
     check(json.loads(ryu_cfg.read_text()) == original, "preset off: Ryujinx settings untouched")
 
-    # the old way (an earlier version installed EmuDeck's Steam Deck motion server): removed when touched
-    old_dir = HOME / "sdgyrodsu"; old_dir.mkdir(); (old_dir / "sdgyrodsu").write_text("x")
-    (old_dir / "uninstall.sh").write_text(f'echo uninstalled >> "{FAKE}/uninstalled.log"\n')
-    unit = HOME / ".config/systemd/user/sdgyrodsu.service"; unit.parent.mkdir(parents=True, exist_ok=True); unit.write_text("[Service]")
-    st = config.load("settings"); st["motion_server_ours"] = True; config.save("settings", st)
     r = await P.set_preset("switch", True)
-    check(r["ok"] and (await P.game(70))["preset"]["on"] and not old_dir.exists() and not unit.exists()
-          and (FAKE / "uninstalled.log").exists() and "motion_server_ours" not in config.load("settings"),
-          "turning it on: no download any more, and the motion server an earlier version installed is removed")
+    check(r["ok"] and (await P.game(70))["preset"]["on"], "turning it on: nothing to download or install")
 
     # not calibrated yet: the game starts normally, settings untouched, and you're told why
     await popups()
