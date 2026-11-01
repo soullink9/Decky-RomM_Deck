@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<emulated_controller>
+	<type>Wii U GamePad</type>
+	<profile>Deck-Gamepad</profile>
+	<controller>
+		<api>DSUController</api>
+		<uuid>0</uuid>
+		<display_name>Controller 1</display_name>
+		<motion>true</motion>
+		<axis>
+			<deadzone>0.25</deadzone>
+			<range>1</range>
+		</axis>
+		<rotation>
+			<deadzone>0.25</deadzone>
+			<range>1</range>
+		</rotation>
+		<trigger>
+			<deadzone>0.25</deadzone>
+			<range>1</range>
+		</trigger>
+		<ip>127.0.0.1</ip>
+		<port>26760</port>
+		<mappings />
+	</controller>
+	<controller>
+		<api>SDLController</api>
+		<uuid>0_030079f6de280000ff11000001000000</uuid>
+		<display_name>Steam Virtual Gamepad</display_name>
+		<rumble>1</rumble>
+		<axis>
+			<deadzone>0.25</deadzone>
+			<range>1</range>
+		</axis>
+		<rotation>
+			<deadzone>0.25</deadzone>
+			<range>1</range>
+		</rotation>
+		<trigger>
+			<deadzone>0.25</deadzone>
+			<range>1</range>
+		</trigger>
+		<mappings />
+	</controller>
+</emulated_controller>

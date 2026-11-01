@@ -1,0 +1,9 @@
+# Installed and built files (npm install / npm run build / npm run package make these)
+node_modules/
+dist/
+build/
+*.zip
+
+# Python caches
+__pycache__/
+*.pyc
