@@ -1,8 +1,9 @@
 # Architecture
 
-RomM Deck connects three things that don't normally talk to each other: a RomM server, an EmuDeck
-install, and Steam's Game Mode. This page explains how the plugin is put together and how data moves
-through it. Read it before changing anything; [CONTRIBUTING.md](CONTRIBUTING.md) has the rules.
+This page is the map for a developer new to the repository: how it's laid out, how the plugin is put together,
+and how data moves through it. RomM Deck connects three things that don't normally talk to each other: a RomM
+server, an EmuDeck install, and Steam's Game Mode. [CONTRIBUTING.md](CONTRIBUTING.md) has the rules every
+change keeps, and the pages under [`docs/`](docs) describe what the plugin does for the people using it.
 
 ## The three running parts
 
@@ -74,7 +75,10 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `src/steampage.tsx` | RomM's details, screenshots, links and Activity on Steam's game pages |
 | `src/ui.tsx` | Small visual pieces: icons, covers, status lines |
 | `src/decky.ts` | The bridge to Decky Loader's and Steam's globals |
-| `tests/` | The test suites and a fake RomM server (see [Testing](#testing)) |
+| `tests/` | The test suites and a fake RomM server (see [Tests](#tests)) |
+| `docs/` | The user documentation: the README is the front page, every other page sits in here |
+| `.github/ISSUE_TEMPLATE/` | The bug-report form |
+| `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky |
 
 ## How data flows
 
@@ -262,10 +266,27 @@ These files are bookkeeping: the saves themselves live in the emulators' folders
 - **The frontend imports nothing at build time.** `src/decky.ts` reads Decky's and Steam's globals
   (`SP_REACT`, `DFL`, `SteamClient`) directly, so the only dependency is esbuild.
 
-## Testing
+## Tests
 
-`npm test` runs every suite (see [CONTRIBUTING.md](CONTRIBUTING.md#tests)). The backend test builds a
+`npm test` runs every suite (see [CONTRIBUTING.md](CONTRIBUTING.md#checking-a-change) and
+[tests/README.md](tests/README.md)). Tests are plain scripts, not a test framework, and need nothing
+installed beyond esbuild. The backend test builds a
 fake home folder with a fake EmuDeck install and fake emulators (shell scripts that write save files),
 starts a fake RomM server (`tests/mock_romm.py`), and drives the real `Plugin` class through downloads,
 launches, syncs, conflicts, removals and presets, checking the files on disk at every step. The
 emulator configuration excerpts in `tests/fixtures/` are shaped like EmuDeck's defaults.
+
+The stand-ins can't prove the plugin works inside real Steam and Decky, so try changes on a handheld too.
+
+## Versions
+
+The plugin has one version, kept in both `package.json` and `py_modules/romm_deck/__init__.py` (a test
+checks they match), because the frontend and backend ship together in one zip. Releases are listed in
+[CHANGELOG.md](CHANGELOG.md); [CONTRIBUTING.md](CONTRIBUTING.md#releasing) covers releasing.
+
+## Where to start
+
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the rules every change keeps.
+2. Read `main.py`: every feature starts as one of its methods, which leads to the module doing the work.
+3. For anything that happens around a game, read `bin/romm_launch.py`, then `session.py`.
+4. Run `npm test` before and after your change.
