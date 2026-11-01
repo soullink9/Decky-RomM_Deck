@@ -162,6 +162,9 @@ async def wait_downloads():
         await asyncio.sleep(0.05)
 
 async def test():
+    import romm_deck
+    version = json.loads((SRC / "package.json").read_text())["version"]
+    check(romm_deck.__version__ == version, f"one version everywhere: backend {romm_deck.__version__}, package.json {version}")
     await P._main()
     check(config.SETTINGS_DIR == HOME / "homebrew/settings/romm-deck", f"settings dir resolved from plugin location ({config.SETTINGS_DIR})")
     r = await P.connect(URL, "WRONG-CODE"); check(not r["ok"] and "Invalid" in r["error"], f"bad pairing code rejected: {r}")
