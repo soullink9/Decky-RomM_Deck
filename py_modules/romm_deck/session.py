@@ -13,14 +13,15 @@ import os
 import time
 from pathlib import Path
 
-from . import config, library, presets, saves
+from . import config, library, presets, procs, saves
 from .api import RomM, RomMError
 
 
 def start(rom_id, game, before, pids):
     """Right after the game starts. `before`: its save folders' snapshot. `pids`: launcher + emulator."""
+    pids = [[pid, procs.start_time(pid)] for pid in pids]  # (with start times: see procs.py)
     config.save(f"session-{rom_id}", {"rom_id": rom_id, "launch": game.get("launch"), "before": before,
-                                      "pids": [[pid, _started(pid)] for pid in pids], "started": time.time()})
+                                      "pids": pids, "started": time.time()})
 
 
 def running(rom_id):
@@ -49,6 +50,8 @@ def finish(timeout=None):
 
 
 def _finish(s, timeout):
+    """The after-game work for one session `s`: note which save files the game wrote, put
+    controller settings back, then push the saves to RomM. Each step reports with a popup."""
     rom_id = str(s.get("rom_id"))
     game = library.installed().get(rom_id)
     synced = bool(game and saves.emu_for(game))
@@ -85,7 +88,7 @@ def _claim():
     for path in pending():
         if path.name.startswith("finishing-"):
             claimer = int(path.name.split("-")[1])
-            if claimer == os.getpid() or _alive(claimer):
+            if claimer == os.getpid() or procs.start_time(claimer) is not None:
                 continue  # someone is finishing it right now
         if _still_running(config.load(path.stem)):
             continue
@@ -102,9 +105,10 @@ def _still_running(s):
     """Is any of the game's processes still alive (including an emulator still writing its save)?"""
     me = os.getpid()
     for pid, started in s.get("pids") or []:
-        # the same start time too: after a reboot, another program may have been given that number
-        if pid != me and _alive(pid) and _started(pid) == started:
+        if pid != me and procs.is_running(pid, started):
             return True
+    # The emulator may have handed over to another process (a launcher script exec'ing the real
+    # emulator, a flatpak wrapper...), so also look for anything still running the game file.
     launch = s.get("launch")
     if not launch:
         return False
@@ -116,24 +120,3 @@ def _still_running(s):
             except OSError:
                 continue
     return False
-
-
-def _started(pid):
-    """When a process started (clock ticks since boot), or None."""
-    try:
-        return int(Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[-1].split()[19])
-    except (OSError, ValueError, IndexError):
-        return None
-
-
-def _alive(pid):
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    try:  # a finished child nobody has collected yet ("zombie") isn't running
-        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[-1].split()[0] != "Z"
-    except OSError:
-        return False

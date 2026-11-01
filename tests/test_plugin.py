@@ -520,7 +520,6 @@ async def test():
     r = await P.game_saves(6, "push"); check(not r["ok"], "no save buttons for download-only platforms")
 
     # ---- auto-load states ----
-    from romm_deck import autoload as A
     racfg = RA / "retroarch.cfg"; racfg.write_text('video_driver = "vulkan"\nsavestate_auto_load = "true"\nsavestate_auto_save = "true"\n')
     (RA / "config/mGBA").mkdir(parents=True); (RA / "config/mGBA/mGBA.cfg").write_text('savestate_auto_load = "true"\n')
     (RA / "config/Snes9x").mkdir(parents=True); (RA / "config/Snes9x/Snes9x.cfg").write_text('video_smooth = "true"\n')
@@ -541,9 +540,13 @@ async def test():
     check(ppt.startswith(b"\xef\xbb\xbf") and b"AutoLoadSaveState = 0\n" in ppt and b"[CPU]\nFast = True" in ppt, "PPSSPP set to 0, BOM kept")
     check((ds / "settings.ini").read_text() == "[Main]\nSettingsVersion = 3\nSaveStateOnExit = false\n\n[Display]\nVSync = false\n", "DuckStation key added in [Main]")
     check((px / "PCSX2.ini").read_text() == "[UI]\nTheme = dark\n\n[EmuCore]\nSaveStateOnShutdown = false\n", "PCSX2 switched off")
-    import romm_deck.autoload as A2
-    t = HOME / "t.ini"; t.write_text("[UI]\nTheme = dark\n"); A2._write(t, "EmuCore", "X", "1")
+    from romm_deck import ini as INI0
+    t = HOME / "t.ini"; t.write_text("[UI]\nTheme = dark\n"); INI0.set_value(t, "EmuCore", "X", "1")
     check(t.read_text() == "[UI]\nTheme = dark\n\n[EmuCore]\nX = 1\n", "missing section gets added")
+    INI0.set_value(t, "EmuCore", "X", None)
+    check(t.read_text() == "[UI]\nTheme = dark\n", "…and removing its only key takes the added section away again: the file as it was")
+    cfg = HOME / "t.cfg"; cfg.write_text('a = "1"\n'); INI0.set_value(cfg, None, "b", '"2"')
+    check(cfg.read_text() == 'a = "1"\nb = "2"\n' and INI0.get_value(cfg, None, "b") == '"2"', "a file without sections (RetroArch's .cfg): key added at the end")
     check("RAautoSave=false" in (HOME / "emudeck/settings.sh").read_text(), "EmuDeck told not to turn RetroArch's back on")
     check(await P.autoload_status() == [] and await P.autoload_off() == [], "everything off; running again changes nothing")
 
@@ -825,7 +828,7 @@ async def test():
           f"downloaded under its real file name, with the extension: {g['launch']}")
 
     # ======== device controller preset (Switch on a ROG Ally) ========
-    from romm_deck import presets as PR, motion as MO
+    from romm_deck import presets as PR, motion as MO, ini as INI
     async def popups():
         await asyncio.sleep(0.8)  # the backend passes them on every half second
         got = [(e[1], e[2]) for e in events if e[0] == "notify"]
@@ -1006,14 +1009,14 @@ async def test():
     await P.set_preset("wii", True)
     calibration = config.load(MO.CALIBRATION); config.save(MO.CALIBRATION, {})  # (doesn't need motion calibrated)
     ok, text = PR.apply(wii, os.getpid())
-    sources = [PR._ini_get(wm, f"Wiimote{n}", "Source") for n in range(1, 5)]
-    check(ok and sources == ["2"] * 4 and PR._ini_get(core, "Core", "WiimoteContinuousScanning") == "True" and dsu_reading()[0] == "no-motion",
+    sources = [INI.get_value(wm, f"Wiimote{n}", "Source") for n in range(1, 5)]
+    check(ok and sources == ["2"] * 4 and INI.get_value(core, "Core", "WiimoteContinuousScanning") == "True" and dsu_reading()[0] == "no-motion",
           f"during a Wii game: all four Wii Remotes real, Dolphin keeps looking for them, no motion server ({text})")
     check("[Wiimote1]\nSource = 2\nDevice = SDL/0/Steam Deck Controller" in wm.read_text() or "Source = 2" in wm.read_text().split("[Wiimote2]")[0],
           "…written in Dolphin's own style, inside each remote's section")
-    PR._ini_set(wm, "Wiimote4", "Source", "0")  # you turn off player 4 in Dolphin during the game
+    INI.set_value(wm, "Wiimote4", "Source", "0")  # you turn off player 4 in Dolphin during the game
     PR.restore()
-    check(PR._ini_get(wm, "Wiimote4", "Source") == "0" and [PR._ini_get(wm, f"Wiimote{n}", "Source") for n in range(1, 4)] == [None] * 3
+    check(INI.get_value(wm, "Wiimote4", "Source") == "0" and [INI.get_value(wm, f"Wiimote{n}", "Source") for n in range(1, 4)] == [None] * 3
           and core.read_bytes() == emudeck_core, "after: emulated remotes back (your player 4 change kept), Dolphin.ini exactly as it was")
     wm.write_bytes(emudeck_wm)
     PR.apply(wii, os.getpid()); PR.restore()

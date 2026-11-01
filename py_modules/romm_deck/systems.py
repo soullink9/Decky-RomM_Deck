@@ -14,6 +14,9 @@ Fields:
   launcher  script in Emulation/tools/launchers
   args      arguments; {rom} is the game file, {cores} the RetroArch cores folder
   exts      file types the emulator opens, in order of preference
+  env       extra environment variables for the launcher (as EmuDeck's parsers set them)
+  sync      whether saves are synced with RomM (off where the emulator keeps saves in a form
+            that can't be split per game)
 """
 from .config import HOME
 
@@ -131,7 +134,9 @@ COLLECTIONS = {
 # Emulators that keep saves next to the game file (in Emulation/roms) instead of their own folder
 SAVES_NEXT_TO_GAME = {"melonds"}
 
-# Every file type that is a game, never a save: never claimed as a save, never deleted as one
+# Every file type that is a game, never a save: never claimed as a save, never deleted as one.
+# The list adds common game types on top of the ones SYSTEMS knows, so a game for a platform without
+# an entry (downloaded only) is protected too.
 GAME_EXTS = {e for s in SYSTEMS.values() for e in s["exts"]} | {
     "zip", "7z", "rar", "chd", "iso", "cue", "bin", "img", "m3u", "gdi", "cdi", "cso", "pbp", "rvz", "wbfs",
     "wia", "gcz", "nsp", "xci", "nsz", "xcz", "3ds", "cia", "nds", "gba", "gbc", "gb", "sfc", "smc", "nes",
