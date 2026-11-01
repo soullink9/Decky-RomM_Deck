@@ -30,6 +30,7 @@ class RomMError(Exception):
     Callers catch this one type to mean "RomM is unreachable or said no", as opposed to a bug."""
 
     def __init__(self, message, status=None):
+        """`status`: RomM's HTTP status, when RomM answered (None when it couldn't be reached)."""
         super().__init__(message)
         self.status = status  # HTTP status from RomM, e.g. 404 when a game was deleted
 
@@ -38,6 +39,7 @@ class RomM:
     """One RomM server, reached with a client API token (sent as a Bearer token on every request)."""
 
     def __init__(self, url, token=""):
+        """`url`: RomM's address as the user typed it (a trailing slash is fine)."""
         self.url = url.rstrip("/")
         self.token = token
         self.timeout = 30  # seconds; the launcher lowers this so a dead server can't stall a game

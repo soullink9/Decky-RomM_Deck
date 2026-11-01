@@ -144,6 +144,13 @@ GAME_EXTS = {e for s in SYSTEMS.values() for e in s["exts"]} | {
 }
 
 
+def switch_base_title(title_id):
+    """The base game's title id for a Switch update's or DLC's (saves and folders belong to the base
+    game). Switch ids encode this: an update is base + 0x800, a DLC base + 0x1000 + n, so clearing
+    the low 12 bits and bit 12 gives the base game's id."""
+    return title_id & ~0xFFF & ~0x1000
+
+
 def for_rom(rom):
     """The SYSTEMS entry for a RomM rom, or None if we only know how to download it."""
     return SYSTEMS.get(rom["platform_slug"]) or SYSTEMS.get(rom["platform_fs_slug"])
