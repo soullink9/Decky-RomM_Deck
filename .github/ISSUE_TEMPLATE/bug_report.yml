@@ -1,0 +1,49 @@
+name: "Bug: RomM Deck"
+description: Something in RomM Deck isn't working as it should.
+labels: [bug]
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: RomM Deck ("version" in package.json, or the Decky plugin list), Decky Loader, RomM, and your OS.
+      placeholder: RomM Deck 0.5.0-beta, Decky Loader 3.x, RomM 5.4.1, Bazzite
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: ROG Xbox Ally X, Steam Deck OLED...
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The steps, if you know them, and the platform and emulator of the game.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Pairing or connecting to RomM
+        - Browsing, downloading or Steam cards
+        - Games already on this PC
+        - Save sync
+        - Removing a game
+        - Steam game pages (details, screenshots, Activity, buttons)
+        - Controller presets or motion
+        - Something else
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Decky's log for RomM Deck and, for a game, ~/homebrew/logs/romm-deck/launch.log. Remove your RomM address and anything else private before pasting.
+      render: text
