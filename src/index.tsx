@@ -1,4 +1,9 @@
-// The Quick Access Menu panel. Every button calls a method in main.py.
+// The Quick Access Menu panel, and the plugin's entry point (the default export at the bottom).
+//
+// Every button calls a method of the Python Plugin class in main.py through `api` below. The panel
+// is a small set of pages (home, a list of platforms or collections, a list of games, one game),
+// switched with `go(page)`; Decky rebuilds the panel each time the menu opens, so the current page
+// is kept in a module variable (`lastPage`) to reopen where you were.
 import {
   React, useState, useEffect, useRef, PanelSection, PanelSectionRow, ButtonItem, TextField, ToggleField, Field,
   staticClasses, Navigation, callable, addEventListener, removeEventListener, toast, useQuickAccessVisible,
@@ -23,7 +28,11 @@ type Page =
   | { page: "list"; title: string; kind: string; id: number | string; back: Page }
   | { page: "game"; id: number; back: Page; playing?: boolean; appId?: number; auto?: boolean };
 type Err = { error: string };
+type Download = { id: number; name: string; percent: number };
+type GamePageView = Extract<Page, { page: "game" }>;
+type SavesResult = { ok: boolean; error?: string; up?: number; down?: number; other?: string[]; on_romm?: number };
 
+/** The backend's methods (main.py), typed. Names match the Python methods. */
 const api = {
   status: callable<[], { connected: boolean; url: string }>("status"),
   connect: callable<[url: string, code: string], { ok: boolean; error?: string }>("connect"),
@@ -35,7 +44,7 @@ const api = {
   scan: callable<[], { found: number; relinked: string[]; lost: string[] } | Err>("scan"),
   game: callable<[id: number], Game | Err>("game"),
   download: callable<[id: number, name: string]>("download"),
-  downloads: callable<[], { id: number; name: string; percent: number }[]>("downloads"),
+  downloads: callable<[], Download[]>("downloads"),
   uninstall: callable<[id: number], { ok: boolean; error?: string; app_id?: number | null; deleted?: string[]; kept?: string[] }>("uninstall"),
   bios: callable<[platformId: number], { ok: boolean; count: number } | Err>("bios"),
   downloadExtras: callable<[id: number, name: string]>("download_extras"),
@@ -44,12 +53,13 @@ const api = {
   options: callable<[], { steam_pages: boolean; switch_extras_dir: string; switch_extras_dir_from_ryujinx: boolean }>("options"),
   setOption: callable<[key: string, value: string | boolean]>("set_option"),
   syncSaves: callable<[id?: number], { done: number; failed: string[] }>("sync_saves"),
-  gameSaves: callable<[id: number, mode: "sync" | "push" | "pull"], { ok: boolean; error?: string; up?: number; down?: number; other?: string[]; on_romm?: number }>("game_saves"),
+  gameSaves: callable<[id: number, mode: "sync" | "push" | "pull"], SavesResult>("game_saves"),
   autoloadStatus: callable<[], string[]>("autoload_status"),
   autoloadOff: callable<[], string[]>("autoload_off"),
   summary: callable<[], { on_pc: number; platforms?: number; collections?: number }>("summary"),
 };
 
+/** The game page's save buttons: [backend mode, label, description, icon]. */
 const SAVE_BUTTONS: ["sync" | "push" | "pull", string, string, "sync" | "up" | "down"][] = [
   ["sync", "Sync", "Newest copy wins, here or on RomM", "sync"],
   ["push", "Push to RomM", "This PC's saves replace RomM's", "up"],
@@ -59,18 +69,34 @@ const SAVE_BUTTONS: ["sync" | "push" | "pull", string, string, "sync" | "up" | "
 /** "On this PC · 23" */
 const counted = (label: string, n?: number) => (n === undefined ? label : `${label} · ${n}`);
 
+/** The "Back" button at the top of every page but home. */
 function Back({ go }: { go: () => void }) {
   return <PanelSectionRow><ButtonItem layout="below" onClick={go}><Label icon="back">Back</Label></ButtonItem></PanelSectionRow>;
 }
 
+/** Did the backend answer with an error ({ error: "..." }) instead of data? */
 const isErr = (x: any): x is Err => x && typeof x === "object" && "error" in x;
+
+/** A dangerous button's two-press confirmation: the first press arms it, and it disarms by itself
+ * after 5 seconds, so a stray second press much later can't delete anything. */
+function useConfirm(): [boolean, (on: boolean) => void] {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 5000);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  return [armed, setArmed];
+}
 
 // ---------- pages ----------
 
+/** First run (or after Disconnect): the RomM address and a pairing code or token. */
 function Setup({ onDone }: { onDone: () => void }) {
   const [url, setUrl] = useState("");
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
+  /** Pair with RomM (the backend exchanges a code for a token, then tests it). */
   const connect = async () => {
     setMsg("Connecting…");
     const r = await api.connect(url, code);
@@ -96,6 +122,7 @@ function Setup({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** The home page: downloads in progress, ways into the library, and settings. */
 function Home({ go, url, onDisconnect }: { go: (p: Page) => void; url: string; onDisconnect: () => void }) {
   const [search, setSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -103,6 +130,7 @@ function Home({ go, url, onDisconnect }: { go: (p: Page) => void; url: string; o
   useEffect(() => { api.summary().then(setCounts).catch(() => {}); }, []);
   const home: Page = { page: "home" };
 
+  /** Sync every downloaded game's saves, then say how it went. */
   const syncAll = async () => {
     setSyncing(true);
     const r = await api.syncSaves();
@@ -159,6 +187,7 @@ function Home({ go, url, onDisconnect }: { go: (p: Page) => void; url: string; o
   );
 }
 
+/** The folder Switch updates and DLC download into (Ryujinx's own, if it has one set). */
 function ExtrasFolder() {
   const [dir, setDir] = useState("");
   const [fromRyujinx, setFromRyujinx] = useState(false);
@@ -186,6 +215,7 @@ function ExtrasFolder() {
   );
 }
 
+/** The off switch for everything RomM Deck shows on Steam's game pages (src/steampage.tsx). */
 function SteamPagesSwitch() {
   const [on, setOn] = useState(null as boolean | null);
   useEffect(() => { api.options().then((o) => setOn(o.steam_pages !== false)).catch(() => setOn(true)); }, []);
@@ -198,8 +228,10 @@ function SteamPagesSwitch() {
   );
 }
 
+/** Takes over every existing Steam card RomM knows the game of, so it syncs saves (src/cards.ts). */
 function CardsButton() {
   const [state, setState] = useState("");
+  /** Check every non-Steam card, showing how far it's got. */
   const go = async () => {
     setState("Starting…");
     const n = await takeOverAll((done, total) => setState(`Checking card ${done + 1} of ${total}…`));
@@ -217,9 +249,11 @@ function CardsButton() {
   );
 }
 
+/** "Steam cards & emulators": the settings that change things outside the plugin. */
 function AutoloadSection() {
   const [on, setOn] = useState(null as string[] | null);
   useEffect(() => { api.autoloadStatus().then(setOn); }, []);
+  /** Turn auto-load off everywhere, then check again. */
   const turnOff = async () => {
     const changed = await api.autoloadOff();
     toast("Auto-load states", changed.length ? `Turned off in ${changed.join(", ")}` : "Already off");
@@ -240,6 +274,7 @@ function AutoloadSection() {
   );
 }
 
+/** A list of RomM's platforms or collections; each opens its games. */
 function Pick({ view, go }: { view: Extract<Page, { page: "pick" }>; go: (p: Page) => void }) {
   const [items, setItems] = useState(null as Collection[] | Err | null);
   useEffect(() => { (view.kind === "platforms" ? api.platforms() : api.collections()).then(setItems); }, [view.kind]);
@@ -268,21 +303,23 @@ function Pick({ view, go }: { view: Extract<Page, { page: "pick" }>; go: (p: Pag
   );
 }
 
+/** A list of games (a platform, a collection, a search, or what's on this PC), with removing
+ * several at once on the "On this PC" list. */
 function List({ view, go }: { view: Extract<Page, { page: "list" }>; go: (p: Page) => void }) {
   const [roms, setRoms] = useState(null as Rom[] | Err | null);
   const [scanning, setScanning] = useState(false);
   const [choosing, setChoosing] = useState(false);       // picking games to remove
   const [chosen, setChosen] = useState([] as number[]);
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useConfirm();
   const [removing, setRemoving] = useState("");           // "Removing 2 of 5: …"
-  const load = () => (view.kind === "installed" ? api.installed() : api.roms(view.kind, view.id)).then(setRoms);
+  /** (Re)load the list from the backend. */
+  const load = () => {
+    const request = view.kind === "installed" ? api.installed() : api.roms(view.kind, view.id);
+    return request.then(setRoms);
+  };
   useEffect(() => { load(); }, [view.kind, view.id]);
-  useEffect(() => {  // the second press has to come soon after the first
-    if (!confirm) return;
-    const t = setTimeout(() => setConfirm(false), 5000);
-    return () => clearTimeout(t);
-  }, [confirm]);
 
+  /** Match RomM's whole library against Emulation/roms (and relink games RomM deleted). */
   const scan = async () => {
     setScanning(true);
     const r = await api.scan();
@@ -315,8 +352,20 @@ function List({ view, go }: { view: Extract<Page, { page: "list" }>; go: (p: Pag
     load();
   };
 
-  const toggle = (id: number) => setChosen((c: number[]) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  /** Choose or unchoose one game for removing. */
+  const toggle = (id: number) => {
+    setConfirm(false);  // the choice changed: the next press arms again
+    setChosen((c: number[]) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  };
+  /** A game in the list was pressed: choose it (when removing several) or open its page. */
+  const pressed = (id: number) => {
+    if (choosing) toggle(id);
+    else go({ page: "game", id, back: view });
+  };
   const all = Array.isArray(roms) ? roms.map((r) => r.id) : [];
+  let removeLabel = `Remove ${chosen.length} selected`;
+  if (removing) removeLabel = "Removing…";
+  else if (confirm) removeLabel = `Press again to remove ${chosen.length}`;
 
   return (
     <PanelSection title={view.title}>
@@ -347,9 +396,7 @@ function List({ view, go }: { view: Extract<Page, { page: "list" }>; go: (p: Pag
               description={removing || (chosen.length
                 ? "Syncs saves and states, checks RomM has every one, then deletes each game, its saves and its Steam card. A game with anything not on RomM is skipped."
                 : "Tap games below to choose them")}>
-              <Label icon="trash" color="#ff6b6b">
-                {removing ? "Removing…" : confirm ? `Press again to remove ${chosen.length}` : `Remove ${chosen.length} selected`}
-              </Label>
+              <Label icon="trash" color="#ff6b6b">{removeLabel}</Label>
             </ButtonItem>
           </PanelSectionRow>
           {!removing && (
@@ -373,8 +420,7 @@ function List({ view, go }: { view: Extract<Page, { page: "list" }>; go: (p: Pag
       {Array.isArray(roms) && roms.length === 0 && <PanelSectionRow><Field description="No games" /></PanelSectionRow>}
       {Array.isArray(roms) && roms.map((r) => (
         <PanelSectionRow key={r.id}>
-          <ButtonItem layout="below" disabled={!!removing}
-            onClick={() => (choosing ? (setConfirm(false), toggle(r.id)) : go({ page: "game", id: r.id, back: view }))}>
+          <ButtonItem layout="below" disabled={!!removing} onClick={() => pressed(r.id)}>
             <GameRow id={r.id} cover={r.cover} name={r.name} onPC={r.installed && view.kind !== "installed"}
               sub={`${r.platform}${r.installed && view.kind !== "installed" ? " · on this PC" : ""}`}
               selected={choosing ? chosen.includes(r.id) : undefined} />
@@ -385,11 +431,49 @@ function List({ view, go }: { view: Extract<Page, { page: "list" }>; go: (p: Pag
   );
 }
 
-function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p: Page) => void }) {
+/** What the game page's status line says, and its dot's colour. */
+function gameState(game: Game, view: GamePageView, downloading: boolean): [string, string] {
+  if (view.playing) return ["Playing now", GREEN];
+  if (downloading) return ["Downloading", "#1a9fff"];
+  if (game.installed) return ["On this PC", GREEN];
+  return ["In RomM, not on this PC", GREY];
+}
+
+/** The game page's line about its saves (nothing for a game whose saves aren't synced). */
+function SavesStatus({ game }: { game: Game }) {
+  if (!game.syncs) return null;
+  if (!game.saves) return <Status color={GREY}>Saves not synced yet</Status>;
+  if (game.saves.ok) return <Status color={GREEN}>Saves synced {ago(game.saves.at)}</Status>;
+  const why = game.saves.error ? `: ${game.saves.error}` : "";
+  return <Status color={AMBER}>Last sync failed {ago(game.saves.at)}{why}</Status>;
+}
+
+/** The popup after a save button, in words: what moved, or why nothing did. */
+function savesMessage(mode: string, label: string, r: SavesResult, game: Game): string {
+  if (!r.ok) return r.error || "Failed";
+  const nothingMoved = !r.up && !r.down;
+  if (nothingMoved && r.other?.length) {
+    return `RomM's saves for this game are from ${r.other.join(", ")}, which this PC doesn't use`;
+  }
+  if (mode === "pull" && !r.down) return "RomM has no saves or states for this game yet";
+  if (mode === "push" && !r.up) return "No saves or states for this game on this PC yet";
+  return `${label}: ${r.up} files up, ${r.down} down. RomM game #${game.id} has ${r.on_romm} saves/states from this PC`;
+}
+
+/** The text under the Calibrate motion button. */
+function calibrationHint(busy: string, step: string, calibrated: boolean): string {
+  if (busy === "calibrate") return step || "Starting…";
+  if (calibrated) return "Calibrated. Redo it if tilting goes the wrong way.";
+  return "Needed once before motion works: lay it flat, then stand it up facing you.";
+}
+
+/** One game: download, Steam card, controller preset, saves, BIOS, remove. */
+function GamePage({ view, go }: { view: GamePageView; go: (p: Page) => void }) {
   const [game, setGame] = useState(null as Game | Err | null);
   const [progress, setProgress] = useState(null as number | null);
   const [busy, setBusy] = useState("");
   const [calibration, setCalibration] = useState("");  // the step the user is on, while calibrating
+  /** (Re)load the game from the backend. */
   const refresh = () => api.game(view.id).then((g: Game | Err) => {
     setGame(g);
     if (!isErr(g)) setProgress(g.downloading);
@@ -412,6 +496,7 @@ function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p:
   useEffect(() => {
     if (!visible || !downloading) return;
     let seen = false;  // (a download that's only just been asked for may not be listed yet)
+    /** This game's current percent, from the backend's list of downloads. */
     const check = () => api.downloads().then((l) => {
       const d = l.find((x) => x.id === view.id);
       if (d) { seen = true; setProgress(d.percent); }
@@ -422,19 +507,20 @@ function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p:
     return () => clearInterval(timer);
   }, [visible, downloading, view.id]);
 
-  const run = async (label: string, fn: () => Promise<void>) => { setBusy(label); await fn(); setBusy(""); refresh(); };
+  /** Run one button's action: buttons are disabled meanwhile (`busy` names it), then the page reloads. */
+  const run = async (label: string, fn: () => Promise<void>) => {
+    setBusy(label);
+    await fn();
+    setBusy("");
+    refresh();
+  };
 
   if (game === null) return <PanelSection><PanelSectionRow><Field description="Loading…" /></PanelSectionRow></PanelSection>;
   if (isErr(game)) return <PanelSection><PanelSectionRow><Field description={game.error} /></PanelSectionRow></PanelSection>;
 
   const year = game.about?.release_date ? String(new Date(game.about.release_date * 1000).getUTCFullYear()) : "";
   const size = game.size_mb >= 1024 ? `${(game.size_mb / 1024).toFixed(1)} GB` : `${game.size_mb} MB`;
-  const state = view.playing ? ["Playing now", GREEN] : progress !== null ? ["Downloading", "#1a9fff"]
-    : game.installed ? ["On this PC", GREEN] : ["In RomM, not on this PC", GREY];
-  const saves = !game.syncs ? null
-    : !game.saves ? <Status color={GREY}>Saves not synced yet</Status>
-    : game.saves.ok ? <Status color={GREEN}>Saves synced {ago(game.saves.at)}</Status>
-    : <Status color={AMBER}>Last sync failed {ago(game.saves.at)}{game.saves.error ? `: ${game.saves.error}` : ""}</Status>;
+  const [stateText, stateColor] = gameState(game, view, progress !== null);
 
   return (
     <>
@@ -451,8 +537,8 @@ function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p:
               {game.about?.developers?.length > 0 && (
                 <div style={{ fontSize: "12px", opacity: 0.7 }}>{game.about.developers.join(", ")}</div>
               )}
-              <Status color={state[1]}>{state[0]}</Status>
-              {saves}
+              <Status color={stateColor}>{stateText}</Status>
+              <SavesStatus game={game} />
             </div>
           </div>
         </PanelSectionRow>
@@ -510,9 +596,7 @@ function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p:
           {game.installed && game.playable && game.preset?.on && game.preset.motion && (
             <PanelSectionRow>
               <ButtonItem layout="below" disabled={!!busy}
-                description={busy === "calibrate" ? calibration || "Starting…"
-                  : game.preset.calibrated ? "Calibrated. Redo it if tilting goes the wrong way."
-                  : "Needed once before motion works: lay it flat, then stand it up facing you."}
+                description={calibrationHint(busy, calibration, game.preset.calibrated)}
                 onClick={() => run("calibrate", async () => {
                   setCalibration("");
                   const r = await api.calibrateMotion();
@@ -537,12 +621,7 @@ function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p:
               <ButtonItem layout="below" disabled={!!busy} description={desc}
                 onClick={() => run(mode, async () => {
                   const r = await api.gameSaves(game.id, mode);
-                  toast(game.name, !r.ok ? r.error || "Failed"
-                    : !r.up && !r.down && r.other?.length
-                      ? `RomM's saves for this game are from ${r.other.join(", ")}, which this PC doesn't use`
-                      : mode === "pull" && !r.down ? "RomM has no saves or states for this game yet"
-                      : mode === "push" && !r.up ? "No saves or states for this game on this PC yet"
-                      : `${label}: ${r.up} files up, ${r.down} down. RomM game #${game.id} has ${r.on_romm} saves/states from this PC`);
+                  toast(game.name, savesMessage(mode, label, r, game));
                 })}><Label icon={icon}>{busy === mode ? "Working…" : label}</Label></ButtonItem>
             </PanelSectionRow>
           ))}
@@ -582,16 +661,16 @@ function GamePage({ view, go }: { view: Extract<Page, { page: "game" }>; go: (p:
 
 // Decky rebuilds the panel every time the menu opens; this remembers where you were.
 let lastPage: Page = { page: "home" };
-let serverUrl = "";
+let serverUrl = "";  // RomM's address, for "Open on RomM"
 
-/** A download bar sized to the menu (Steam's own one runs past the right edge in here). */
 /** The home page's list of what's downloading, live; each one opens its game. Hidden when nothing is. */
 function Downloads({ go, back }: { go: (p: Page) => void; back: Page }) {
-  const [list, setList] = useState([] as { id: number; name: string; percent: number }[]);
+  const [list, setList] = useState([] as Download[]);
   const reload = useRef(null as null | (() => void));
   useEffect(() => {
     let alive = true;
     let known = new Set<number>();
+    /** The current list of downloads, from the backend. */
     const load = () => api.downloads().then((l) => {
       if (!alive) return;
       known = new Set(l.map((d) => d.id));
@@ -600,11 +679,11 @@ function Downloads({ go, back }: { go: (p: Page) => void; back: Page }) {
     load();
     const onProgress = addEventListener("progress", (id: number, pct: number) => {
       if (!known.has(id)) { known.add(id); load(); return; }  // started elsewhere: fetch its name
-      setList((l: { id: number; name: string; percent: number }[]) => l.map((d) => (d.id === id ? { ...d, percent: pct } : d)));
+      setList((l: Download[]) => l.map((d) => (d.id === id ? { ...d, percent: pct } : d)));
     });
     const onDone = addEventListener("downloaded", (id: number) => {
       known.delete(id);
-      setList((l: { id: number; name: string; percent: number }[]) => l.filter((d) => d.id !== id));
+      setList((l: Download[]) => l.filter((d) => d.id !== id));
     });
     reload.current = load;
     return () => { alive = false; removeEventListener("progress", onProgress); removeEventListener("downloaded", onDone); };
@@ -623,7 +702,7 @@ function Downloads({ go, back }: { go: (p: Page) => void; back: Page }) {
   if (!list.length) return null;
   return (
     <PanelSection title="Downloading">
-      {list.map((d) => (
+      {list.map((d: Download) => (
         <PanelSectionRow key={d.id}>
           <ButtonItem layout="below" onClick={() => go({ page: "game", id: d.id, back })}>
             <span style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", textAlign: "left" }}>
@@ -637,6 +716,7 @@ function Downloads({ go, back }: { go: (p: Page) => void; back: Page }) {
   );
 }
 
+/** A download bar sized to the menu (Steam's own one runs past the right edge in here). */
 function Progress({ percent, label }: { percent: number; label?: string }) {
   return (
     <Field label={`${label ? `${label} · ` : "Downloading… "}${percent}%`} childrenLayout="below" bottomSeparator="none">
@@ -647,16 +727,13 @@ function Progress({ percent, label }: { percent: number; label?: string }) {
   );
 }
 
+/** Remove from this PC: two presses, and nothing is deleted unless RomM has every save. */
 function RemoveButton({ game, view, busy, run }: {
-  game: Game; view: Extract<Page, { page: "game" }>; busy: string; run: (label: string, fn: () => Promise<void>) => void;
+  game: Game; view: GamePageView; busy: string; run: (label: string, fn: () => Promise<void>) => void;
 }) {
-  const [confirm, setConfirm] = useState(false);
-  useEffect(() => {
-    if (!confirm) return;
-    const t = setTimeout(() => setConfirm(false), 5000);
-    return () => clearTimeout(t);
-  }, [confirm]);
+  const [confirm, setConfirm] = useConfirm();
 
+  /** Remove the game (and the card the menu was opened from, if it's this game's). */
   const remove = () => run("remove", async () => {
     setConfirm(false);
     // the card the menu was opened from (e.g. Steam ROM Manager's) goes too, but only if it really
@@ -670,22 +747,29 @@ function RemoveButton({ game, view, busy, run }: {
     toast(game.name, `Removed. ${r.deleted?.length || 0} save files deleted, all safe on RomM${kept}`);
   });
 
+  let label = "Remove from this PC";
+  if (busy === "remove") label = "Syncing and checking…";
+  else if (confirm) label = "Press again to remove";
+
   return (
     <PanelSectionRow>
       <ButtonItem layout="below" disabled={!!busy || view.playing} onClick={() => (confirm ? remove() : setConfirm(true))}
         description={view.playing ? "Quit the game first"
           : "Syncs saves and states, checks RomM has every one, then deletes the game, its saves and its Steam card. If anything isn't on RomM, nothing is deleted."}>
-        <Label icon="trash" color="#ff6b6b">{busy === "remove" ? "Syncing and checking…" : confirm ? "Press again to remove" : "Remove from this PC"}</Label>
+        <Label icon="trash" color="#ff6b6b">{label}</Label>
       </ButtonItem>
     </PanelSectionRow>
   );
 }
 
+/** The panel: a problem message if the backend didn't start, setup if not paired, else the current page. */
 function Content() {
   const [status, setStatus] = useState(null as { connected: boolean; url: string } | null);
   const [page, setPageState] = useState(lastPage);
   const [problem, setProblem] = useState("");  // the plugin's Python side didn't answer
+  /** Show a page, and remember it for the next time the menu opens. */
   const setPage = (p: Page) => { lastPage = p; setPageState(p); };
+  /** Ask the backend whether it's paired with RomM (this also shows that it's running at all). */
   const load = () => api.status().then((st: { connected: boolean; url: string }) => { serverUrl = st.url; setStatus(st); });
 
   // Each time the menu opens: if you're on a game's Steam page (or playing it), show that game.
@@ -734,12 +818,15 @@ function Content() {
 
 // ---------- plugin entry ----------
 
+/** The plugin's icon in Decky's list. */
 const PluginIcon = () => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor">
     <path d="M7 6h10a5 5 0 0 1 5 5v2a5 5 0 0 1-5 5c-1.6 0-2.6-.8-3.3-2h-3.4c-.7 1.2-1.7 2-3.3 2a5 5 0 0 1-5-5v-2a5 5 0 0 1 5-5zm-.5 4v1.5H5v1h1.5V14h1v-1.5H9v-1H7.5V10zm9.5.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm2 1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" />
   </svg>
 );
 
+/** Decky calls this once when the plugin loads; what it returns is the panel, and onDismount
+ * runs when the plugin unloads. Listeners that must work while the menu is closed live here. */
 export default function () {
   // Steam ROM Manager puts its own command back on cards when it runs; quietly take them back
   setTimeout(() => repairCards().catch(() => {}), 15000);

@@ -38,9 +38,11 @@ const scores = new Map<any, any>();  // overview -> its own metacritic_score, to
 // objects makes it redraw the page (and can keep it redrawing).
 type Made = { d: Details; desc: any; assoc: any; shots: any[] };
 const made = new Map<number, Made>();
+/** What Steam is given for one game, built once per version of RomM's details. */
 function madeFor(appId: number, d: Details) {
   let m = made.get(appId);
   if (!m || m.d !== d) {
+    /** Names as Steam's developer/publisher records (no links: there's no store page to link to). */
     const people = (list: string[]) => list.map((name) => ({ strName: name, strURL: "" }));
     m = {
       d,
@@ -57,6 +59,7 @@ function madeFor(appId: number, d: Details) {
   return m;
 }
 
+/** RomM's details for an app, if it's a RomM Deck card and the feature is on; else undefined. */
 const ours = (appId: number): Details | undefined => (enabled ? details[String(appId)] : undefined);
 
 /** Replace obj[name] with wrap(original); remember exactly how to undo it. */
@@ -148,7 +151,9 @@ function findInSteam(test: (x: any) => boolean) {
   } catch { return undefined; }
 }
 
+/** Is this a React element (not text, a number or null)? */
 const isElement = (x: any) => !!x && typeof x === "object" && typeof x.$$typeof === "symbol" && String(x.$$typeof).includes("react.");
+/** Does this element have all of these props? (How Steam's unnamed components are recognised.) */
 const has = (el: any, ...keys: string[]) => !!el?.props && typeof el.props === "object" && keys.every((k) => k in el.props);
 
 /** React elements under `root` that pass `test`, nearest first. Only follows children (never
@@ -169,6 +174,7 @@ function findElements(root: any, test: (el: any) => boolean, max = 8) {
 /** A short outline of a page piece (element names and prop names), for the log. */
 function outline(root: any) {
   const lines: string[] = [];
+  /** Add one line per element, indented by depth (at most 40 lines, 5 levels). */
   const walk = (node: any, depth: number) => {
     if (lines.length > 40 || depth > 5) return;
     if (Array.isArray(node)) return node.forEach((n) => walk(n, depth));
@@ -182,6 +188,7 @@ function outline(root: any) {
   return lines.join("\n");
 }
 const logged = new Set<string>();
+/** Log a page piece's outline to the plugin's log, once per session per kind of problem. */
 function logOnce(what: string, root: any) {
   if (logged.has(what)) return;
   logged.add(what);
@@ -190,6 +197,7 @@ function logOnce(what: string, root: any) {
 
 // ---------- the Game Info buttons: RomM's links instead of Steam's store/community ones ----------
 
+/** Open a web page in Steam's own browser (Game Mode has no desktop browser to hand it to). */
 function openWeb(url: string) {
   try { if (Navigation?.NavigateToExternalWeb) return Navigation.NavigateToExternalWeb(url); } catch { /* next */ }
   try { w.SteamClient?.System?.OpenInSystemBrowser?.(url); } catch { /* nothing else to try */ }
@@ -234,8 +242,10 @@ function infoWrapper(original: any) {
   return wrapper;
 }
 
+/** Steam's row of Game Info links (Store page, Community...), recognised by its props. */
 const isLinksRow = (el: any) => has(el, "overview", "details", "workshopVisible", "marketPresence");
 
+/** The info section as Steam drew it: wrap its body so the links row inside gets RomM's links. */
 function intoInfo(section: any) {
   for (const row of findElements(section, isLinksRow)) row.type = RommLinks;  // (if Steam ever draws it here directly)
   const bodies = findElements(section, (el) => typeof el.type === "function" && !el.type.prototype?.isReactComponent
@@ -251,7 +261,7 @@ const KIND_ICONS: Record<string, IconName> = {
 };
 
 /** RomM's activity for a game: notes, RetroAchievements unlocks, saves and states, sync results. */
-export function RommActivity({ d }: { d: Details }) {
+export function RommActivity({ d }: { d: Details; key?: string }) {
   const items = d.activity || [];
   const days: [string, Activity[]][] = [];
   for (const e of items) {
@@ -298,6 +308,12 @@ function intoActivity(section: any, d: Details) {
 
 // ---------- the page ----------
 
+/** Add a section name to what GetSections returned (a Set in current Steam; an array is handled too). */
+function addSection(sections: any, name: string) {
+  if (typeof sections.add === "function") sections.add(name);
+  else if (Array.isArray(sections) && !sections.includes(name)) sections.push(name);
+}
+
 const opened = new Map<number, number>();
 /** A page was opened: the backend catches up on its notes/saves if they're old (at most every 10 min). */
 function pageOpened(appId: number) {
@@ -326,6 +342,8 @@ export function RommDetails({ d }: { d: Details }) {
   );
 }
 
+/** Put RomM's rating in each RomM Deck card's metacritic_score (shown on the page), and Steam's own
+ * value back where RomM has none or the feature is off. */
 function applyScores() {
   change(() => {
     for (const o of w.appStore?.allApps || []) {
@@ -342,6 +360,8 @@ function applyScores() {
   });
 }
 
+/** Install every patch; returns the function that removes them all. If Steam's library isn't loaded
+ * yet, tries again every 5 seconds (`tries` more times). */
 export function start(tries = 12): () => void {
   const store = w.appDetailsStore, apps = w.appStore;
   if (!store || !apps?.allApps?.length) {  // Steam's library isn't loaded yet: try again shortly
@@ -426,9 +446,8 @@ export function start(tries = 12): () => void {
       const appId = Number(this?.props?.overview?.appid);
       const d = this?.props?.overview?.app_type === SHORTCUT ? ours(appId) : undefined;
       if (d && ret) {
-        const add = (name: string) => { if (typeof ret.add === "function") ret.add(name); else if (Array.isArray(ret) && !ret.includes(name)) ret.push(name); };
-        if (d.screenshots?.length) add("screenshots");
-        if (d.activity?.length) add("activity");
+        if (d.screenshots?.length) addSection(ret, "screenshots");
+        if (d.activity?.length) addSection(ret, "activity");
         pageOpened(appId);
       }
     } catch { /* Steam's own sections */ }
@@ -483,10 +502,12 @@ export function refresh() {
 }
 
 let received = 0;  // 'steam_details' events so far: an answer asked for before the latest one is older
+/** New details from the backend: use them for every page from now on. */
 function use(m: Record<string, Details>) {
   details = m || {};
   applyScores();
 }
+/** Ask the backend for the details (an answer older than an event that arrived meanwhile is dropped). */
 function load() {
   const asked = received;
   callable<[], Record<string, Details>>("steam_details")().then((m) => { if (received === asked) use(m); }).catch(() => {});

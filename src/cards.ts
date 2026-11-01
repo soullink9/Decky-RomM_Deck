@@ -14,14 +14,21 @@ const takenOver = callable<[], { rom_id: number; app_id: number }[]>("taken_over
 
 const SHORTCUT = 1073741824; // Steam's app type for non-Steam games
 
-/** A card's command, as Steam has it. */
+/** Steam's app details, cut down to the card's command (null if Steam gave nothing). */
+function toDetails(d: any): Details | null {
+  if (!d) return null;
+  return {
+    exe: d.strShortcutExe || "",
+    options: d.strShortcutLaunchOptions || d.strLaunchOptions || "",
+    startDir: d.strShortcutStartDir || "",
+  };
+}
+
+/** A card's command, as Steam has it. Steam only hands over a card's details through a callback,
+ * so this waits for it (3 s at most; null if Steam doesn't answer). */
 export function appDetails(appId: number): Promise<Details | null> {
   return new Promise((resolve) => {
-    const done = (d: any) => resolve(d ? {
-      exe: d.strShortcutExe || "",
-      options: d.strShortcutLaunchOptions || d.strLaunchOptions || "",
-      startDir: d.strShortcutStartDir || "",
-    } : null);
+    const done = (d: any) => resolve(toDetails(d));  // (called once: from the cache, Steam, or the timeout)
     const cached = (window as any).appDetailsStore?.GetAppDetails?.(appId);
     if (cached?.strShortcutExe) return done(cached);
     let reg: any;
@@ -34,8 +41,11 @@ export function appDetails(appId: number): Promise<Details | null> {
   });
 }
 
+/** Does this card already start through RomM Deck's launcher? */
 const isOurs = (d: Details) => d.options.includes("romm_launch.py");
 
+/** Set a card's command. Steam keeps the target and start folder in quotes (paths may have spaces),
+ * which JSON.stringify adds; launch options are stored as typed. */
 function setCommand(appId: number, c: Command) {
   const apps = steamApps();
   apps.SetShortcutExe(appId, JSON.stringify(c.exe));
@@ -117,6 +127,7 @@ async function addToCollection(appId: number, names: string[]) {
   }
 }
 
+/** Delete a card from Steam (nothing if `appId` is null). */
 export function removeCard(appId: number | null) {
   if (appId) steamApps().RemoveShortcut(appId);
 }
