@@ -27,10 +27,14 @@ export const useQuickAccessVisible: () => boolean = api.useQuickAccessVisible ||
 export const callable = <A extends any[] = [], R = any>(method: string) =>
   api.callable(method) as (...args: A) => Promise<R>;
 
+/** Listen for an event the backend sends with decky.emit(); returns the handle removeEventListener needs. */
 export const addEventListener = (event: string, fn: (...args: any[]) => void) => api.addEventListener(event, fn);
+/** Stop listening (pass what addEventListener returned). */
 export const removeEventListener = (event: string, fn: (...args: any[]) => void) => api.removeEventListener(event, fn);
+/** A Game Mode popup. */
 export const toast = (title: string, body: string) => api.toaster.toast({ title, body });
 
 /** Steam's own client API (read fresh each time; Steam can replace it after startup). */
 export const steamApps = () => w.SteamClient.Apps;
+/** Wait `ms` milliseconds. */
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

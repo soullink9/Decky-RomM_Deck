@@ -13,6 +13,7 @@ function where(): { onPage: number | null; running: number | null } {
   return { onPage: Number(path.match(/\/library\/app\/(\d+)/)?.[1]) || null, running: ui?.MainRunningAppID || null };
 }
 
+/** The RomM game the user is on right now (its page is open, or it's running), or null. */
 export async function currentGame(): Promise<Current | null> {
   const { onPage, running } = where();
   const appId = onPage || running; // the page you're looking at wins over what's running

@@ -32,6 +32,7 @@ const PATHS = {
 };
 export type IconName = keyof typeof PATHS;
 
+/** One of the icons above, in the text's colour. */
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" style={{ flex: "none" }} aria-hidden="true">
@@ -41,7 +42,7 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
 }
 
 /** A button's text with an icon in front. `color` for the one red button (Remove). */
-export function Label({ icon, children, color }: { icon: IconName; children: any; color?: string }) {
+export function Label({ icon, children, color }: { icon: IconName; children?: any; color?: string }) {
   return (
     <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color }}>
       <Icon name={icon} />
@@ -63,6 +64,7 @@ export function Cover({ id, path = "", width = 40 }: { id: number; path?: string
   useEffect(() => {
     if (covers.has(id)) return setTries(covers.get(id)!);
     let alive = true, started = false;
+    /** Ask the backend for the cover once, and remember the answer for the session. */
     const load = () => {
       if (started) return;
       started = true;
@@ -86,6 +88,12 @@ export function Cover({ id, path = "", width = 40 }: { id: number; path?: string
     const fallback = setTimeout(() => { if (!answered) { watch.disconnect(); load(); } }, 1500);
     return () => { alive = false; watch.disconnect(); clearTimeout(fallback); };
   }, [id]);
+  /** That address didn't load: try the next one, or show the placeholder when none are left. */
+  const failed = () => {
+    const rest = (tries || []).slice(1);
+    covers.set(id, rest);
+    setTries(rest);
+  };
   return (
     <div ref={box} style={{
       width: `${width}px`, height: `${Math.round(width * 4 / 3)}px`, flex: "none", borderRadius: "4px", overflow: "hidden",
@@ -93,7 +101,7 @@ export function Cover({ id, path = "", width = 40 }: { id: number; path?: string
       color: "rgba(255,255,255,0.35)",
     }}>
       {tries?.length ? <img key={tries[0]} src={tries[0]} style={{ width: "100%", height: "100%", objectFit: "cover" }}
-        onError={() => { const rest = tries.slice(1); covers.set(id, rest); setTries(rest); }} />  /* next, or the placeholder */
+        onError={failed} />
         : <Icon name="gamepad" size={Math.round(width / 2)} />}
     </div>
   );
@@ -129,7 +137,7 @@ export function GameRow({ id, cover, name, sub, onPC, selected }: {
 export const GREEN = "#5ba32b", AMBER = "#e8a33d", GREY = "rgba(255,255,255,0.4)";
 
 /** A coloured dot and a short line, e.g. "● Saves synced 10 min ago". */
-export function Status({ color, children }: { color: string; children: any }) {
+export function Status({ color, children }: { color: string; children?: any }) {
   return (
     <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px" }}>
       <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, flex: "none" }} />
@@ -138,6 +146,7 @@ export function Status({ color, children }: { color: string; children: any }) {
   );
 }
 
+/** "5 min ago", "3 days ago", or the date: how long ago a unix time was. */
 export function ago(seconds: number): string {
   const s = Math.max(0, Date.now() / 1000 - seconds);
   if (s < 60) return "just now";
