@@ -1,94 +1,102 @@
+# Disclosure
+
+This project was primarily created for personal use and for my family. While I may provide updates, they are not guaranteed. However, if you've stumbled upon this and find it interesting, feel free to download and use it. I had a great time building this and hope you enjoy it.
+
+Note: Built with the assistance of Claude.ai. I’m putting it here now so you don't have to hunt for it below.
+
+<p align="center">
+  <img src="docs/images/logo.png" alt="soullink9 logo" width="200">
+</p>
+
 # RomM Deck
 
-> **Disclosure:** written with the help of Claude (Anthropic). Personal project; use at your own risk and back up your saves.
->
-> **Beta (0.5.0).** Tested on a ROG Xbox Ally X with Bazzite, EmuDeck and RomM 5.4.1.
+A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that brings your self-hosted
+[RomM](https://github.com/rommapp/romm) library into Game Mode on a Bazzite or SteamOS handheld running
+[EmuDeck](https://www.emudeck.com/). Everything is done from the Quick Access menu: no terminal and no
+commands.
 
-A Decky Loader plugin for a Bazzite/SteamOS machine running EmuDeck:
+**Beta (0.5.0).** Built and tested on a ROG Xbox Ally X with Bazzite, EmuDeck and RomM 5.4.1.
 
-- Browse RomM by **platform**, **collection** (regular and smart) or **search** from the Quick Access menu
-- Games already in `Emulation/roms` are recognised (same file name, or same name in another format like `.chd`). Games RomM keeps as several files (a Switch game with its update and DLC) are recognised from the base game file, and launch it rather than an update or DLC file. Files named differently from RomM are matched by the Switch title ID in the name, or by the game's name with tags, punctuation and "The" ignored, only when exactly one file fits
-- **Relinks games whose RomM entry was deleted** (say, a duplicate): opening the game, or "Find games already on this PC", moves it to the RomM entry with the same file, with its Steam card and save tracking. Old ids are forwarded in `moved.json`, so existing cards keep working
-- **Download** a game into the right `Emulation/roms/<system>` folder; it gets a **Steam card** with RomM's cover art, in the same platform collection Steam ROM Manager uses (e.g. "Nintendo Game Boy Advance"; names in `COLLECTIONS` in `systems.py`)
-- **Switch updates & DLC** go to their own folder (the one Ryujinx auto-loads them from; found in Ryujinx's settings, or set it on the home page), not `roms/switch`. RomM labels each file of a game as game, update or DLC. Games already on the PC get a "Download updates & DLC" button. Remove deletes only the update/DLC files it downloaded
-- **Remove from this PC**: syncs saves and states, checks RomM holds an identical copy of every one, then deletes the game, its saves and its Steam card. If any save isn't on RomM (or RomM can't be reached), nothing is deleted. Memory cards shared with other games (PS2 `Mcd001.ps2`, DuckStation `shared_card_1.mcd`, Dolphin `MemoryCardA.raw`) are never deleted. It also refuses to delete a platform folder, anything outside `Emulation/roms`, or a file/folder that holds another game, and every file it deletes is listed in `~/homebrew/logs/romm-deck/removed.log`
-- **Works with your existing EmuDeck cards**: "Sync saves on all my Steam cards" (or one card at a time from its Steam page) makes each card start through RomM Deck, which runs the card's original command, so saves are pulled before and pushed after you play. Names, artwork and playtime stay. If Steam ROM Manager later puts its own command back, the plugin takes the card back when it loads
-- **Opens on the game you're on**: open the menu while playing, or on a game's Steam page, and the panel jumps to that game (works for Steam ROM Manager cards too)
-- **Saves and save states sync** with RomM: pulled before a game starts, pushed after it closes, plus **Sync** (newest wins), **Push to RomM** and **Pull from RomM** buttons on each game; Push and Pull keep the replaced copy on RomM as `backup-<time>-<name>`
-- **Turn off auto-load states** in every emulator that has it (RetroArch and its core overrides, PPSSPP, Flycast, DuckStation, PCSX2) — see `autoload.py`
-- **Popups in Game Mode** when a game starts and closes: saves synced (or why not), and the controller preset going on and off
-- **RomM details on Steam game pages** (Game Mode, on by default; switch on the plugin's home page): for games with a RomM Deck card, Steam's own info section shows RomM's description, developer, publisher, release date, rating and feature icons (single player, multiplayer...), plus a details block with everything else RomM knows: genres, themes, game modes, players, perspective, franchise, series, age rating, How Long To Beat, RetroAchievements, other names, keywords, regions, languages, revision, tags, platform, file, your RomM status. Steam only shows that section for games it believes are Steam games, so while that game's own page is open Steam is told it isn't a shortcut; its launch and id lookups always get the truth, so Play works. The same approach as the MetaDeck and Decky Metadata plugins (don't run them on the same games). Nothing is written to Steam's files. See `src/steampage.tsx`. Also on those pages:
-  - **Screenshots**: RomM's screenshots of the game (up to 10), after any you took with Steam. Copies are kept in `~/homebrew/data/romm-deck/shots/` and Decky shows them to Steam (Steam's pages can't load pictures from a plain-http RomM)
-  - **Activity**: your RomM notes (and other players' public ones), RetroAchievements unlocks and awards (needs the `me.read` scope, see Install), saves and states in RomM, when you last played, and how the last save sync on this PC went. It catches up when you open the page (at most every 15 minutes) and after you play
-  - **Buttons under Game Info**: RomM (the game in RomM's web UI), RetroAchievements, HowLongToBeat and the trailer, in place of Steam's store and community links, which lead nowhere for these games
-- **Controller presets** (per platform, off by default, toggled on the game's page; every setting they change is put back after the game, also after a crash, and anything you change in the emulator meanwhile is kept):
-  - **Ally motion** (ROG Ally / Xbox Ally) for **Switch** (Ryujinx), **Wii U** (Cemu) and **3DS** (Azahar): motion and tilt from the Ally's own sensor. EmuDeck's Steam Deck motion server can't see the Ally's motion under InputPlumber (and InputPlumber up to 0.81 sent the accelerometer wrong, [InputPlumber #715](https://github.com/ShadowBlip/InputPlumber/issues/715)), so the plugin reads it itself, from the sensor or, when InputPlumber 0.82+ is streaming from it, from InputPlumber's virtual Steam Deck controller, and serves it at 127.0.0.1:26760 while a game runs. EmuDeck already points Cemu and Azahar there; the preset only sets it where it isn't. Calibrate once from a game page (lay it flat, then stand it up facing you). Nothing is downloaded or installed
-  - **Use my real Wii Remotes** for **Wii** (Dolphin, any device): all four players use real Wii Remotes instead of emulated ones, and Dolphin keeps looking for them, so pressing 1+2 on a remote connects it
-  - See `presets.py` and `motion.py`
-- **BIOS**: download a platform's firmware from RomM into `Emulation/bios` (Switch keys also go to Ryujinx)
+- **Download games** from RomM into the right `Emulation/roms` folder, with a Steam card, cover art and
+  the same Steam collection Steam ROM Manager uses. Games already on the PC are recognised.
+- **Sync saves and save states** with RomM: pulled before you play, pushed after, however the game is
+  closed. No version of a save is ever thrown away.
+- **Keep your EmuDeck cards.** Existing cards can sync saves too, keeping their names, artwork and playtime.
+- **Remove safely.** A game is only deleted once RomM holds an identical copy of every save.
+- **RomM on Steam's game pages**: the description, developer, rating and every other detail, screenshots,
+  an Activity list (notes, RetroAchievements unlocks, saves) and links back to RomM.
+- **Controller presets**: motion and tilt from the ROG Ally's own sensor for Switch, Wii U and 3DS, and
+  real Wii Remotes for Wii. Every setting goes back after the game.
 
 ## Install
 
-1. Decky settings → Developer mode on → Developer → **Install plugin from ZIP** → `romm-deck.zip`
-2. In the RomM web UI: Settings → **Client API Tokens** → create one with these scopes:
-   `roms.read`, `collections.read`, `assets.read`, `assets.write`, `firmware.read`
-   (and `me.read` if you want your RetroAchievements unlocks in a game's Steam Activity).
-   Then choose **Pair device** to get a short code (valid for 60 seconds).
-3. In the plugin, enter your RomM address and the pairing code (or paste the whole `rmm_…` token).
+**Needs:** Decky Loader with Developer mode on, EmuDeck, and a RomM server (developed against 5.4.1).
 
-## How it works
+1. **Install.** Decky settings → Developer → **Install plugin from ZIP** → `romm-deck.zip` from the
+   [latest release](https://github.com/soullink9/Decky-RomM_Deck/releases).
+2. **Get a pairing code.** In RomM's web UI: Settings → **Client API Tokens** → create a token with the
+   permissions in [Installation](docs/Installation.md#the-romm-token), then choose **Pair device**.
+3. **Pair.** Open RomM Deck in the Quick Access menu and enter your RomM address and the code.
 
-[ARCHITECTURE.md](ARCHITECTURE.md) describes the code: its parts, how data moves between them, and the
-files it keeps. In short:
+## Documentation
 
-Each RomM Deck card runs `python3 bin/romm_launch.py <rom id>`, which pulls saves, starts the game, then
-pushes whatever save files changed. A taken-over card runs the command it had before (kept in
-`installed.json` as `original`); a card the plugin made runs EmuDeck's launcher script. If RomM is
-unreachable the game still starts.
+| Page | What's in it |
+|---|---|
+| [Installation](docs/Installation.md) | Installing, pairing, the token's permissions, updating and removing |
+| [Library and Downloads](docs/Library-and-Downloads.md) | Browsing, downloading, Steam cards, games already on the PC, Switch updates and DLC, BIOS |
+| [Saves and States](docs/Saves-and-States.md) | How sync works, the save buttons, conflicts and backups, closing games, removing safely |
+| [Steam Game Pages](docs/Steam-Game-Pages.md) | RomM's details, screenshots, Activity and links on Steam's pages |
+| [Controller Presets](docs/Controller-Presets.md) | Ally motion and calibration, real Wii Remotes, how settings are put back |
+| [Platforms and Emulators](docs/Platforms-and-Emulators.md) | Every supported platform, its folder and emulator, and where saves are looked for |
+| [Troubleshooting](docs/Troubleshooting.md) | Logs, common questions and known issues |
+| [Privacy and Security](docs/Privacy-and-Security.md) | What's sent where, the token, and every file the plugin keeps |
+| [Changelog](CHANGELOG.md) | What's in each release |
 
-**Closing a game**: use Steam's "Exit game" as usual. Steam closes the game's whole process tree,
-launcher included, so the launcher doesn't rely on outliving the emulator: it leaves a note
-(`session-<rom id>.json`) when the game starts, and the after-game work (push saves, put controller
-settings back) is done once, by whichever notices first: the launcher (it ignores Steam's close
-request so it can finish), the plugin when Steam reports the game stopped, or the plugin when it
-next starts (after a crash or power-off). It waits until nothing is still running the game file,
-so the emulator has finished writing its save. If you uninstall the plugin, run Steam ROM Manager to put the
-EmuDeck commands back on taken-over cards.
+## Repository layout
 
-**Saves**: EmuDeck doesn't always manage to point an emulator at `Emulation/saves`, so the launcher
-watches up to three places for each game: `Emulation/saves/<emulator>` (EmuDeck), the emulator's own folders
-(`DEFAULT_ROOTS` in `saves.py`, flatpak and AppImage locations), and, for emulators that save next to the
-game (melonDS: `SAVES_NEXT_TO_GAME` in `systems.py`), the game's folder in `roms/`, where only files named
-after the game that aren't game files count. It snapshots them before and after you play; changed files belong to
-that game. Loose files in the emulator's main folder (RetroArch `.srm`/`.state`…) upload one by one;
-anything else uploads as one `<emulator>-saves.romm.zip` per game, which remembers which folder each file
-came from. If a save changed both here and on RomM, the newer copy is kept locally and the other is
-uploaded as `conflict-<time>-<name>`. For games started from other cards (Steam ROM Manager), saves are
-found by name instead: files named after the game file, like `<game>.srm` or `<game>_1.mcd`. Switch saves
-are found from Ryujinx's own save index (`bis/system/save/8000000000000000/0/imkvdb.arc`), using the game's
-title ID from RomM (or a `[0100…]` tag in the file name).
+| Folder | What's in it |
+|---|---|
+| [`src/`](src) | The frontend: the Quick Access panel, Steam cards and game pages (TypeScript). |
+| [`main.py`](main.py), [`py_modules/romm_deck/`](py_modules/romm_deck) | The backend Decky runs (Python). |
+| [`bin/`](bin) | The game launcher every card runs, and the motion server. |
+| [`docs/`](docs) | The documentation pages above. |
+| [`tests/`](tests) | The tests, with a fake RomM server. |
 
-**Change an emulator**: edit that platform's line in `systems.py`.
+New to the code? [ARCHITECTURE.md](ARCHITECTURE.md) explains how the plugin is built and how data flows
+through it.
 
-## Files on the machine
+Bug reports and pull requests are welcome: [open an issue](https://github.com/soullink9/Decky-RomM_Deck/issues/new/choose)
+and fill in the form. [CONTRIBUTING.md](CONTRIBUTING.md) explains how the repository works, and the
+[Code of Conduct](CODE_OF_CONDUCT.md) applies everywhere here.
 
-- Settings and state: `~/homebrew/settings/romm-deck/` (`settings.json`, `installed.json`, `sync.json`, `moved.json`)
-- Small cover art for the panel: `~/homebrew/settings/romm-deck/covers/` (fetched from RomM once; safe to delete)
-- Last save sync per game, for the game page: `~/homebrew/settings/romm-deck/sync-status.json`
-- RomM's details for Steam game pages: `~/homebrew/settings/romm-deck/steam-details.json` (refreshed weekly; safe to delete)
-- Copies of RomM's screenshots for Steam game pages: `~/homebrew/data/romm-deck/shots/` (removed with the game; safe to delete)
-- Logs: Decky's plugin log, `~/homebrew/logs/romm-deck/launch.log` for game launches, and `removed.log` for every file the plugin has deleted
+## Credits
 
-## Build
+Work from other people this project uses or learned from:
 
-```sh
-npm install        # just esbuild
-npm test           # every test suite
-npm run package    # builds dist/index.js and romm-deck.zip
-```
+- **[Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader)** (Steam Deck Homebrew) runs the
+  plugin and provides its frontend API.
+- **[MetaDeck](https://github.com/EmuDeck/MetaDeck)** and **[Decky Metadata](https://github.com/beallio/Decky-Metadata)**
+  showed how to put metadata on Steam's game pages for non-Steam games, and the safeguards that keep Steam
+  stable. RomM Deck's Steam page code follows the same approach.
+- **[SteamDeckGyroDSU](https://github.com/kmicki/SteamDeckGyroDSU)** (kmicki, MIT) is the reference for the
+  motion axes sent to emulators. **[SDL](https://github.com/libsdl-org/SDL)** and
+  **[InputPlumber](https://github.com/ShadowBlip/InputPlumber)** document the Steam Deck controller's
+  motion report the plugin reads.
+- **[EmuDeck](https://github.com/dragoonDorise/EmuDeck)**: the plugin uses EmuDeck's folders, launcher
+  scripts, Steam ROM Manager collection names and emulator settings. The test fixtures are short excerpts
+  of EmuDeck's default emulator configuration.
+- **[Material Design Icons](https://github.com/google/material-design-icons)** (Google, Apache 2.0): the
+  icons in the panel.
 
-## Contributing, changes, license
+Data the plugin shows comes from your RomM server, which gathers it from sources such as IGDB,
+RetroAchievements and HowLongToBeat. Achievement badges load from RetroAchievements' own image server.
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): how to report a problem, set up, test and send a change
-- [CHANGELOG.md](CHANGELOG.md): what's in each release
-- [LICENSE](LICENSE): BSD 3-Clause
+This project is not affiliated with or endorsed by RomM, Valve, the Decky Loader or EmuDeck projects,
+ASUS, Microsoft, Nintendo, Sony or Sega. Steam and Steam Deck are trademarks of Valve Corporation; other
+names belong to their owners.
+
+Everything else was written for this project, with help from Claude, Anthropic's AI model.
+
+## License
+
+[BSD 3-Clause License](LICENSE).

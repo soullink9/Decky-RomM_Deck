@@ -1,12 +1,9 @@
 # Changelog
 
-All notable changes to RomM Deck are listed here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
-[Semantic Versioning](https://semver.org/) (the project is in beta: 0.x).
+## 0.5.0-beta (2026-11-01)
 
-## [0.5.0-beta] - 2026-11-01
-
-The first public beta.
+Initial release: the first public beta of RomM Deck, a Decky Loader plugin for RomM and EmuDeck. The
+[documentation](README.md#documentation) covers every feature below.
 
 ### Library and downloads
 
@@ -58,6 +55,14 @@ The first public beta.
 - Opens on the game whose Steam page you're on, or the one you're playing.
 - Cover art in every list, status lines for downloads and saves.
 
+### Repository
+
+- Documentation under `docs/`, an [architecture overview](ARCHITECTURE.md), a [contributor guide](CONTRIBUTING.md)
+  and a [code of conduct](CODE_OF_CONDUCT.md).
+- Tests that run without Steam or Decky: the whole backend against a fake RomM server, the motion server, and the
+  frontend's Steam card handling.
+- A bug-report form.
+
 ### Known limitations
 
 - Ally motion aiming can feel slow or reversed in some games; the axis mapping for handheld
@@ -66,4 +71,3 @@ The first public beta.
   plugin falls back to Steam's own page if anything doesn't match.
 - RetroAchievements unlocks need a RomM API token with the `me.read` permission.
 
-[0.5.0-beta]: https://github.com/soullink9/Decky-RomM_Deck/releases/tag/v0.5.0-beta
