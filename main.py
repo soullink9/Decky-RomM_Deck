@@ -1,28 +1,52 @@
-"""Decky backend: the Quick Access panel calls these methods (see src/index.tsx)."""
+"""The Decky backend: every method of Plugin not starting with "_" can be called from the frontend
+(src/index.tsx and friends, through Decky's callable()). Events go the other way with decky.emit().
+
+Methods return plain JSON-able values. A failure the user should see comes back as
+{"ok": False, "error": ...} or {"error": ...} rather than an exception, so the panel can show it.
+Slow work (RomM requests, file copies) runs in a thread with asyncio.to_thread, so Decky's event
+loop, which every plugin shares, never blocks.
+"""
 import asyncio
 import json
 import os
 import time
 
 import decky
-from romm_deck import autoload, config, library, motion, presets, saves, session, systems
+from romm_deck import autoload, config, library, metadata, motion, presets, saves, session, systems
 from romm_deck.api import RomM, RomMError
 
 config.log = decky.logger  # shared code logs into Decky's plugin log
 
+DETAILS_MAX_AGE = 7 * 86400  # Steam page details are fetched again after a week...
+DETAILS_PAGE_AGE = 15 * 60   # ...or when the page is opened and they're older than 15 minutes
+SAVE_MODES = {  # game_saves() mode -> (direction, force) for saves.sync
+    "sync": ("both", False),  # newest wins
+    "push": ("push", True),   # this PC wins
+    "pull": ("pull", True),   # RomM wins
+}
+
 
 class Plugin:
+    """The backend Decky loads. One instance lives as long as the plugin is loaded."""
+
+    _notes = None              # the task passing launcher popups on (started once)
+    _fetching_details = False  # a Steam page details fetch is running (only one at a time)
+    _counts = None             # RomM's platform and collection counts for the home page...
+    _counted_at = 0            # ...and when they were fetched
+
     async def _main(self):
+        """Decky calls this when the plugin loads."""
         self.loop = asyncio.get_running_loop()
         self.downloading = {}  # rom_id -> percent
         self.download_names = {}  # rom_id -> what the home page calls it while it downloads
-        self._cover_failed = set()
+        self._cover_failed = set()  # games whose missing cover was already logged
         self.loop.create_task(self.game_closed())  # a game left unfinished by a crash or power-off
-        if not getattr(self, "_notes", None):
+        if not self._notes:
             self._notes = self.loop.create_task(self._pass_on_notifications())
 
     async def _unload(self):
-        pass
+        """Decky calls this when the plugin unloads. Nothing to clean up: the frontend undoes its
+        Steam changes itself, and a running game's launcher finishes on its own."""
 
     async def _pass_on_notifications(self):
         """Popups from the launcher (settings/notify/*.json) go to the panel, which shows them."""
@@ -41,6 +65,7 @@ class Plugin:
     # ---------- connection ----------
 
     async def status(self):
+        """Is the plugin paired with a RomM server, and which one."""
         s = config.load("settings")
         return {"connected": bool(s.get("token")), "url": s.get("url", "")}
 
@@ -52,8 +77,10 @@ class Plugin:
         code_or_token = code_or_token.strip()
         try:
             client = RomM(url)
-            token = code_or_token if code_or_token.startswith("rmm_") else \
-                await asyncio.to_thread(client.exchange_pair_code, code_or_token)
+            if code_or_token.startswith("rmm_"):  # RomM's client tokens all start like this
+                token = code_or_token
+            else:
+                token = await asyncio.to_thread(client.exchange_pair_code, code_or_token)
             client.token = token
             await asyncio.to_thread(client.collections)  # proves the token works
         except RomMError as e:
@@ -62,16 +89,20 @@ class Plugin:
         return {"ok": True}
 
     async def disconnect(self):
+        """Forget the RomM server and token. Other settings, and every game on the PC, stay."""
         s = config.load("settings")
-        s.pop("url", None), s.pop("token", None)  # other settings stay
+        s.pop("url", None)
+        s.pop("token", None)
         config.save("settings", s)
 
     # ---------- browsing ----------
 
     async def collections(self):
+        """RomM's collections, regular and smart, for the browse list."""
         return await self._call(lambda c: c.collections())
 
     async def platforms(self):
+        """RomM's platforms that have games, for the browse list."""
         return await self._call(lambda c: c.platforms())
 
     async def roms(self, kind, key):
@@ -93,14 +124,14 @@ class Plugin:
         "url": RomM's own address for it}, either "" if unknown. The panel tries them in that order."""
         base = config.load("settings").get("url", "")
         try:
-            data, path = await asyncio.to_thread(library.thumb, RomM.from_settings(), library.resolve(rom_id), path or "")
+            data, path = await asyncio.to_thread(metadata.thumb, RomM.from_settings(), library.resolve(rom_id), path or "")
         except Exception as e:
             path = getattr(e, "cover_path", path) or ""
             if rom_id not in self._cover_failed:  # once per game, so a long list doesn't flood the log
                 self._cover_failed.add(rom_id)
                 decky.logger.warning("No cover for rom %s (%s): %s", rom_id, path or "no path", e)
             data = ""
-        return {"data": data, "url": f"{base}{path if path.startswith('/') else '/' + path}" if base and path else ""}
+        return {"data": data, "url": _romm_address(base, path)}
 
     async def steam_details(self):
         """{Steam app id: RomM's details} for RomM Deck's cards, for their Steam pages.
@@ -115,7 +146,7 @@ class Plugin:
             entry = kept.get(rid)
             if entry:
                 out[str(g["app_id"])] = {**entry["details"], "activity": self._with_last_sync(rid, entry["details"])}
-            if not entry or time.time() - entry.get("at", 0) > 7 * 86400:
+            if not entry or time.time() - entry.get("at", 0) > DETAILS_MAX_AGE:
                 missing.append(rid)
         self._refresh_details(missing)
         return out
@@ -125,52 +156,52 @@ class Plugin:
         """The game's Activity, plus how its last save sync on this PC went."""
         events = list(details.get("activity") or [])
         st = saves.status(rom_id)
-        if st and st.get("at"):
-            events.append({"at": int(st["at"]), "kind": "sync" if st.get("ok") else "sync-failed",
-                           "title": "Saves synced with RomM" if st.get("ok") else "Save sync didn't finish",
-                           "body": "" if st.get("ok") else st.get("error", ""), "by": "", "image": ""})
-            events.sort(key=lambda e: e["at"], reverse=True)
+        if not st or not st.get("at"):
+            return events
+        if st.get("ok"):
+            event = {"kind": "sync", "title": "Saves synced with RomM", "body": ""}
+        else:
+            event = {"kind": "sync-failed", "title": "Save sync didn't finish", "body": st.get("error", "")}
+        events.append({"at": int(st["at"]), **event, "by": "", "image": ""})
+        events.sort(key=lambda e: e["at"], reverse=True)
         return events
 
     def _refresh_details(self, ids):
-        if ids and not getattr(self, "_fetching_details", False):
+        """Fetch these games' Steam page details from RomM in the background (one fetch at a time:
+        a second request while one runs is dropped, the next page view asks again)."""
+        if ids and not self._fetching_details:
             self._fetching_details = True
             self.loop.create_task(self._fetch_details(ids))
 
     async def page_opened(self, app_id):
         """A RomM Deck card's Steam page was opened: catch up on its notes, saves and
         achievements if they're more than 15 minutes old."""
-        rid = next((r for r, g in library.installed().items() if str(g.get("app_id")) == str(app_id)), None)
-        entry = config.load("steam-details").get(rid) if rid else None
-        if rid and (not entry or time.time() - entry.get("at", 0) > 15 * 60):
+        rid = _rom_for_app(app_id)
+        if not rid:
+            return
+        entry = config.load("steam-details").get(rid)
+        if not entry or time.time() - entry.get("at", 0) > DETAILS_PAGE_AGE:
             self._refresh_details([rid])
 
     async def _fetch_details(self, ids):
+        """Fetch and keep the Steam page details of these games, then send them all to the frontend."""
         try:
             client = RomM.from_settings()
             base = config.load("settings").get("url", "")
-            progress, asked = None, False
+            ra_progress = _NotAsked
             for rid in ids:
                 try:
                     rom = await asyncio.to_thread(client.rom, rid)
-                    if rom.get("ra_id") and not asked:  # RetroAchievements unlocks: one ask for all games
-                        asked = True
-                        try:
-                            progress = (await asyncio.to_thread(client.me)).get("ra_progression")
-                        except RomMError as e:
-                            decky.logger.info("No RetroAchievements progress from RomM: %s", e)
-                    found = library.details(rom, base, progress)
-                    try:
-                        found["screenshots"] = await asyncio.to_thread(library.screenshots, client, rid, rom.get("merged_screenshots"))
-                    except OSError as e:  # (can't write the copies: the page just has no screenshots)
-                        decky.logger.warning("Screenshots of rom %s not copied: %s", rid, e)
-                        found["screenshots"] = []
+                    if rom.get("ra_id") and ra_progress is _NotAsked:  # one ask covers every game
+                        ra_progress = await asyncio.to_thread(_retroachievements_progress, client)
+                    found = metadata.details(rom, base, None if ra_progress is _NotAsked else ra_progress)
+                    found["screenshots"] = await asyncio.to_thread(_copy_screenshots, client, rid, rom)
                 except RomMError as e:
                     decky.logger.warning("No RomM details for rom %s: %s", rid, e)
                     continue
                 with config.editing("steam-details") as kept:
                     kept[rid] = {"details": found, "at": time.time()}
-            self._fetching_details = False
+            self._fetching_details = False  # (before emitting: steam_details() may start the next fetch)
             await decky.emit("steam_details", await self.steam_details())
         except Exception:
             decky.logger.exception("Fetching RomM details for Steam pages failed")
@@ -183,14 +214,15 @@ class Plugin:
 
     async def summary(self):
         """Counts for the home page. RomM's are kept for 5 minutes."""
-        if time.time() - getattr(self, "_counted_at", 0) > 300:
+        if time.time() - self._counted_at > 300:
             def count(client):
+                """How many platforms (with games) and collections RomM has."""
                 platforms = [p for p in client.platforms() if p.get("count", 1)]
                 return {"platforms": len(platforms), "collections": len(client.collections())}
             r = await self._call(count)
             if "error" not in r:
                 self._counts, self._counted_at = r, time.time()
-        return {"on_pc": len(library.installed()), **getattr(self, "_counts", {})}
+        return {"on_pc": len(library.installed()), **(self._counts or {})}
 
     async def match_app(self, app_id, exe, options):
         """The RomM game behind a Steam card (for opening the panel on it), or None."""
@@ -204,22 +236,30 @@ class Plugin:
         """Match every game in RomM against Emulation/roms, platform by platform, and move games
         whose RomM entry was deleted to the entry that matches them now."""
         def run(client):
+            """The whole scan, in the worker thread."""
             before = set(library.installed())
             everything = [r for p in client.platforms() for r in client.roms("platform", p["id"])]
             ids = {r["id"] for r in everything}
             relinked, lost = [], []
             for rom_id, g in library.installed().items():
-                if int(rom_id) not in ids:
-                    (relinked if library.relink(client, rom_id, everything) else lost).append(g["name"])
+                if int(rom_id) in ids:
+                    continue  # still in RomM
+                if library.relink(client, rom_id, everything):
+                    relinked.append(g["name"])
+                else:
+                    lost.append(g["name"])
             library.find_existing(everything)
             found = len(set(library.installed()) - before) - len(relinked)
             return {"found": max(found, 0), "relinked": relinked, "lost": lost}
         return await self._call(run)
 
     async def game(self, rom_id):
+        """Everything the panel's game page shows about one game. If RomM no longer has the game
+        but it's on this PC, it's moved to the RomM entry that matches its file (see relink)."""
         rom_id = library.resolve(rom_id)
 
         def fetch(client):
+            """The game from RomM, following a deleted entry to its replacement."""
             try:
                 return client.rom(rom_id)
             except RomMError as e:
@@ -247,17 +287,18 @@ class Plugin:
             "playable": bool(local and local.get("launch")),
             "app_id": local.get("app_id") if local else None,
             "downloading": self.downloading.get(rom_id),
-            "extras": len(library._extra_files(r)),  # Switch updates & DLC in RomM
+            "extras": len(library.extra_files(r)),  # Switch updates & DLC in RomM
             "extras_on_pc": sum(1 for p in (local or {}).get("extras", []) if os.path.isfile(p)),
             "extras_dir": str(library.extras_dir() or ""),
             "preset": self._preset_info((local or {}).get("system") or r["platform_slug"]),
             "cover": r.get("path_cover_small") or r.get("path_cover_large") or "",
             "saves": saves.status(rom_id) if local and saves.emu_for(local) else None,
             "syncs": bool(local and saves.emu_for(local)),
-            "about": {k: v for k, v in library.details(r).items() if k in ("developers", "release_date")},
+            "about": {k: v for k, v in metadata.details(r).items() if k in ("developers", "release_date")},
         }
 
     def _preset_info(self, platform):
+        """The controller preset offered for a platform on this device, for the game page, or None."""
         p = presets.preset_for(platform)
         if not p:
             return None
@@ -267,6 +308,7 @@ class Plugin:
     async def calibrate_motion(self):
         """Guided calibration of the motion sensor; steps arrive as 'calibration' events."""
         def progress(text):
+            """Pass a calibration step to the panel (called from the calibration thread)."""
             asyncio.run_coroutine_threadsafe(decky.emit("calibration", text), self.loop)
         try:
             await asyncio.to_thread(motion.calibrate, progress)
@@ -292,8 +334,9 @@ class Plugin:
                 for k, v in self.downloading.items()]
 
     async def installed(self):
-        return [{"id": int(k), "name": g["name"], "platform": g["platform"], "installed": True}
-                for k, g in sorted(library.installed().items(), key=lambda kv: kv[1]["name"].lower())]
+        """Every game on this PC, by name, for the "On this PC" list."""
+        games = sorted(library.installed().items(), key=lambda item: item[1]["name"].lower())
+        return [{"id": int(k), "name": g["name"], "platform": g["platform"], "installed": True} for k, g in games]
 
     # ---------- download / remove ----------
 
@@ -315,12 +358,15 @@ class Plugin:
     # ---------- settings ----------
 
     async def options(self):
+        """The home page's settings: Steam pages on/off, and the Switch updates & DLC folder
+        (and whether that folder came from Ryujinx rather than being set here)."""
         s = config.load("settings")
         return {"steam_pages": s.get("steam_pages", True),
                 "switch_extras_dir": str(library.extras_dir() or ""),
                 "switch_extras_dir_from_ryujinx": not s.get("switch_extras_dir") and bool(library.extras_dir())}
 
     async def set_option(self, key, value):
+        """Change one of the settings options() returns (other keys are ignored)."""
         if key not in ("switch_extras_dir", "steam_pages"):
             return
         s = config.load("settings")
@@ -328,13 +374,17 @@ class Plugin:
         config.save("settings", s)
 
     async def _download(self, rom_id, extras_only=False):
-        last = [-1]
+        """A download in the background. Progress goes out as 'progress' events (only when the whole
+        percent changes, so the panel isn't flooded), the result as one 'downloaded' event."""
+        last_percent = -1
 
         def progress(done, total):
-            pct = int(done * 100 / total) if total else 0
-            if pct != last[0]:
-                last[0] = self.downloading[rom_id] = pct
-                asyncio.run_coroutine_threadsafe(decky.emit("progress", rom_id, pct), self.loop)
+            """Called from the download thread as bytes arrive."""
+            nonlocal last_percent
+            percent = int(done * 100 / total) if total else 0
+            if percent != last_percent:
+                last_percent = self.downloading[rom_id] = percent
+                asyncio.run_coroutine_threadsafe(decky.emit("progress", rom_id, percent), self.loop)
 
         try:
             client = RomM.from_settings()
@@ -367,6 +417,7 @@ class Plugin:
             return {"ok": False, "error": str(e)}
 
     async def take_over(self, rom_id, app_id, exe, options, start_dir):
+        """Make an existing Steam card start through RomM Deck (see library.take_over)."""
         rom_id = library.resolve(rom_id)
         try:
             return await asyncio.to_thread(library.take_over, rom_id, app_id, exe, options, start_dir)
@@ -375,6 +426,7 @@ class Plugin:
             return {"error": str(e)}
 
     async def taken_over(self):
+        """Cards RomM Deck has taken over, so the frontend can check they still point at it."""
         return library.taken_over()
 
     async def card(self, rom_id):
@@ -387,17 +439,20 @@ class Plugin:
         return {"name": game["name"], "collections": collections, **library.shortcut(rom_id)}
 
     async def set_app_id(self, rom_id, app_id):
+        """Remember the Steam card the frontend just made for a game."""
         rom_id = library.resolve(rom_id)
         library.set_app_id(rom_id, app_id)
 
     async def cover(self, rom_id):
+        """Cover art for a new Steam card, or None (the card then just has no artwork)."""
         rom_id = library.resolve(rom_id)
         try:
-            return await asyncio.to_thread(library.cover, RomM.from_settings(), rom_id)
+            return await asyncio.to_thread(metadata.cover, RomM.from_settings(), rom_id)
         except Exception:
             return None
 
     async def bios(self, platform_id):
+        """Download a platform's BIOS files from RomM into Emulation/bios."""
         names = await self._call(lambda c: library.install_firmware(c, platform_id))
         if isinstance(names, dict):
             return names
@@ -412,7 +467,7 @@ class Plugin:
         game = library.installed().get(str(rom_id))
         if not game or not saves.emu_for(game):
             return {"ok": False, "error": "Saves aren't synced for this game"}
-        direction, force = {"sync": ("both", False), "push": ("push", True), "pull": ("pull", True)}[mode]
+        direction, force = SAVE_MODES[mode]
         try:
             r = await asyncio.to_thread(saves.sync, RomM.from_settings(), str(rom_id), game, direction, force)
             return {"ok": True, **r}
@@ -433,7 +488,7 @@ class Plugin:
             if not session.pending():
                 break
             await asyncio.sleep(3)
-        rid = next((r for r, g in library.installed().items() if app_id and str(g.get("app_id")) == str(app_id)), None)
+        rid = _rom_for_app(app_id)
         if rid:
             self._refresh_details([rid])
 
@@ -444,6 +499,7 @@ class Plugin:
         return await asyncio.to_thread(autoload.status)
 
     async def autoload_off(self):
+        """Turn off "load the last state on start" everywhere; returns the emulators changed."""
         return await asyncio.to_thread(autoload.turn_off)
 
     async def sync_saves(self, rom_id=None):
@@ -471,3 +527,44 @@ class Plugin:
             return await asyncio.to_thread(fn, RomM.from_settings())
         except RomMError as e:
             return {"error": str(e)}
+
+
+# ---------- helpers ----------
+
+_NotAsked = object()  # (RetroAchievements progress not asked for yet; None means "asked, none")
+
+
+def _rom_for_app(app_id):
+    """The rom id (as installed.json keys it) of the game with this Steam card, or None."""
+    if not app_id:
+        return None
+    for rid, g in library.installed().items():
+        if str(g.get("app_id")) == str(app_id):
+            return rid
+    return None
+
+
+def _romm_address(base, path):
+    """RomM's own address for a resource path (paths come with or without a leading slash)."""
+    if not base or not path:
+        return ""
+    return base + (path if path.startswith("/") else "/" + path)
+
+
+def _retroachievements_progress(client):
+    """The user's RetroAchievements progress from RomM, or None if RomM won't say (no account linked,
+    or the token lacks the me.read permission); the rest of the Activity list works without it."""
+    try:
+        return client.me().get("ra_progression")
+    except RomMError as e:
+        decky.logger.info("No RetroAchievements progress from RomM: %s", e)
+        return None
+
+
+def _copy_screenshots(client, rom_id, rom):
+    """Copies of the game's screenshots for its Steam page; [] if they can't be written."""
+    try:
+        return metadata.screenshots(client, rom_id, rom.get("merged_screenshots"))
+    except OSError as e:
+        decky.logger.warning("Screenshots of rom %s not copied: %s", rom_id, e)
+        return []

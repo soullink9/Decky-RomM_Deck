@@ -20,6 +20,7 @@ def main():
     watch_start = int(sys.argv[2]) if sys.argv[2].isdigit() else None  # ("None": the launcher was already gone)
 
     def launcher_running():
+        """Is the game's launcher still running? (The game is over when it isn't.)"""
         return procs.is_running(watch_pid, watch_start)
 
     try:

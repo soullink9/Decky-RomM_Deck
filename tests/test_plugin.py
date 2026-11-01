@@ -136,7 +136,7 @@ sys.modules["decky"] = decky
 sys.path.insert(0, str(PLUG / "py_modules"))
 sys.path.insert(0, str(PLUG))
 import main
-from romm_deck import config, library
+from romm_deck import config, library, metadata
 
 srv = M.serve(8765)
 URL = "http://127.0.0.1:8765"
@@ -310,7 +310,7 @@ async def test():
         "user_saves": [{"file_name": "Pokemon Emerald (USA).srm", "emulator": "mgba", "updated_at": "2026-10-20T19:00:00Z"}],
         "user_states": [{"file_name": "Pokemon Emerald (USA).state1", "emulator": "mgba", "updated_at": "2026-10-19T19:00:00Z"}],
     }
-    d = library.details(rich)
+    d = metadata.details(rich)
     facts = dict(d["facts"])
     check(d["description"] == "Catch Pokémon in Hoenn." and d["developers"] == ["Game Freak"] and d["publishers"] == ["Nintendo"]
           and d["release_date"] == 1095724800 and d["rating"] == 85 and d["features"] == [1, 2],
@@ -320,22 +320,22 @@ async def test():
           and facts.get("RetroAchievements") == "3 achievements, 40 points" and facts.get("File") == "Pokemon Emerald (USA).gba · 16 MB"
           and facts.get("In your RomM") == "Now playing, 40% complete, rated 9/10, now playing" and facts.get("RomM game") == "#1",
           f"every other RomM fact as a row ({len(facts)}): {list(facts)}")
-    check(library.details({"summary": None, "igdb_metadata": {"companies": [{"name": "Retro Studios"}], "first_release_date": 1631836800, "total_rating": "8.9"}})
+    check(metadata.details({"summary": None, "igdb_metadata": {"companies": [{"name": "Retro Studios"}], "first_release_date": 1631836800, "total_rating": "8.9"}})
           | {"facts": []} == {"description": "", "developers": ["Retro Studios"], "publishers": [], "release_date": 1631836800, "rating": 89, "features": [], "facts": [],
                               "links": [], "activity": []},
           "IGDB's fields when RomM's own are missing (and a 0-10 score scaled to 100)")
-    check(library.details({}) == {"description": "", "developers": [], "publishers": [], "release_date": None, "rating": None, "features": [], "facts": [],
+    check(metadata.details({}) == {"description": "", "developers": [], "publishers": [], "release_date": None, "rating": None, "features": [], "facts": [],
                                   "links": [], "activity": []},
           "a game with no metadata: nothing, no error")
     # the Game Info buttons and the Activity list
-    check(library.links(rich, "http://romm.lan:8080/") == [["RomM", "http://romm.lan:8080/rom/1"], ["RetroAchievements", "https://retroachievements.org/game/515"],
+    check(metadata.links(rich, "http://romm.lan:8080/") == [["RomM", "http://romm.lan:8080/rom/1"], ["RetroAchievements", "https://retroachievements.org/game/515"],
                                                          ["HowLongToBeat", "https://howlongtobeat.com/game/77"], ["Trailer", "https://www.youtube.com/watch?v=a%20b"]],
-          f"Game Info buttons: the game in RomM, plus the sites RomM matched it to: {library.links(rich, 'http://romm.lan:8080/')}")
+          f"Game Info buttons: the game in RomM, plus the sites RomM matched it to: {metadata.links(rich, 'http://romm.lan:8080/')}")
     progress = {"total": 2, "results": [
         {"rom_ra_id": 999, "earned_achievements": [{"id": "b1", "date": "2026-01-01 00:00:00"}]},  # another game's
         {"rom_ra_id": 515, "num_awarded": 2, "max_possible": 3, "highest_award_kind": "beaten-hardcore", "most_recent_awarded_date": "2026-10-10 12:00:00",
          "earned_achievements": [{"id": "b1", "date": "2026-10-02 08:00:00"}, {"id": "b2", "date": "2026-10-10 12:00:00", "date_hardcore": "2026-10-10 12:00:00"}]}]}
-    acts = library.activity(rich, progress)
+    acts = metadata.activity(rich, progress)
     kinds = [a["kind"] for a in acts]
     check(kinds == ["save", "played", "state", "achievement", "award", "achievement", "note", "note"],
           f"Activity, newest first: saves, states, last played, achievements, notes: {kinds}")
@@ -344,14 +344,14 @@ async def test():
           f"an unlock: its title, description, points and badge, at its time (UTC): {first}")
     champ = next(a for a in acts if a["title"] == "Champion")
     check(champ["body"] == "25 points · hardcore", f"hardcore unlocks say so: {champ['body']!r}")
-    check(not any(a["at"] == library._when("2026-01-01 00:00:00") for a in acts), "another game's unlocks aren't listed")
+    check(not any(a["at"] == metadata._when("2026-01-01 00:00:00") for a in acts), "another game's unlocks aren't listed")
     note = next(a for a in acts if a["title"] == "Where I am")
     long_note = next(a for a in acts if a["kind"] == "note" and a["by"] == "friend")
     check(note["body"] == "Before Sootopolis.\nNeed HM07." and note["by"] == "me" and long_note["title"] == "Note" and len(long_note["body"]) == 1201,
           "notes: title, text (long ones shortened), and who wrote them")
-    check(library._when("2026-10-20T18:30:00.123456Z") == library._when("2026-10-20 18:30:00") == 1792521000 and library._when(1792521000000) == 1792521000
-          and library._when("nonsense") is None and library._when(None) is None, "RomM's and RetroAchievements' times understood (and nonsense ignored)")
-    check(library.activity(rich)[0]["kind"] == "save" and not any(a["kind"] == "achievement" for a in library.activity(rich)),
+    check(metadata._when("2026-10-20T18:30:00.123456Z") == metadata._when("2026-10-20 18:30:00") == 1792521000 and metadata._when(1792521000000) == 1792521000
+          and metadata._when("nonsense") is None and metadata._when(None) is None, "RomM's and RetroAchievements' times understood (and nonsense ignored)")
+    check(metadata.activity(rich)[0]["kind"] == "save" and not any(a["kind"] == "achievement" for a in metadata.activity(rich)),
           "no RetroAchievements progress (not linked, or no permission): the rest still shows")
     M.ROMS[1].update(rich)
     events[:] = [e for e in events if e[0] != "steam_details"]
@@ -390,7 +390,7 @@ async def test():
     M.ROMS[1]["user_saves"] = [{"file_name": "Pokemon Emerald (USA).srm", "emulator": "mgba", "updated_at": "2026-10-25T09:00:00Z"}]
     await P.game_closed(4000001)
     got = await next_details()
-    check(got and any(a["kind"] == "save" and a["at"] == library._when("2026-10-25T09:00:00Z") for a in got["4000001"]["activity"]), "a game closed: its page catches up (the save it just pushed)")
+    check(got and any(a["kind"] == "save" and a["at"] == metadata._when("2026-10-25T09:00:00Z") for a in got["4000001"]["activity"]), "a game closed: its page catches up (the save it just pushed)")
     from romm_deck import saves as S4
     S4._mark(1, False, "Couldn't reach RomM")
     top = (await P.steam_details())["4000001"]["activity"][0]

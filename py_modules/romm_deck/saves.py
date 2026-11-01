@@ -28,7 +28,7 @@ from pathlib import Path
 from . import config, systems
 
 KINDS = ("saves", "states")
-UPLOAD_FIELD = {"saves": "saveFile", "states": "stateFile"}
+UPLOAD_FIELD = {"saves": "saveFile", "states": "stateFile"}  # the form field RomM's upload expects
 MAX_FILE = 512 * 1024 * 1024  # skip anything bigger than this (disk images, not saves)
 
 # Sub-folders of Emulation/saves/<emu> that aren't game saves
@@ -36,6 +36,10 @@ SKIP = {"system", "system_saves", "trophy", "profiles", "screenshots", "cheats",
 # Dolphin's Wii folder is the whole virtual NAND; only title/ holds game saves
 SUBFOLDER = {"Wii": "title"}
 
+# Files are identified by a "key": "<folder label>/<path inside that folder>", e.g.
+# "ra-saves/Metroid Fusion (USA).srm". Keys (not full paths) are what sync.json and the zips store,
+# so the same save lands in the right place on a machine whose folders are somewhere else.
+#
 # Each emulator's own save folders, used alongside EmuDeck's links because EmuDeck
 # doesn't always manage to point an emulator at Emulation/saves. Folders that don't
 # exist are ignored, and a folder found twice is only watched once.
@@ -112,8 +116,7 @@ def roots(game):
     emu = emu_for(game)
     paths = config.emudeck()
     found = []
-    base = next((d for d in paths["saves"].iterdir() if d.name.lower() == emu.lower()), None) \
-        if paths["saves"].is_dir() else None
+    base = _emudeck_saves_folder(paths["saves"], emu)
     if base:
         for child in sorted(base.iterdir()):
             if child.name not in SKIP and child.is_dir():
@@ -131,10 +134,35 @@ def roots(game):
             continue
         folder = folder.resolve()
         # watch each folder once, even when it's linked twice or sits inside another one
-        if any(folder == f or folder.is_relative_to(f) or f.is_relative_to(folder) for _, _, f in unique):
-            continue
-        unique.append((kind, label, folder))
+        overlaps = any(folder == f or folder.is_relative_to(f) or f.is_relative_to(folder) for _, _, f in unique)
+        if not overlaps:
+            unique.append((kind, label, folder))
     return unique
+
+
+def _emudeck_saves_folder(saves_dir, emu):
+    """Emulation/saves/<emu>, matched without regard to case (EmuDeck writes "Cemu" but "dolphin"),
+    or None if EmuDeck has no folder for this emulator."""
+    if not saves_dir.is_dir():
+        return None
+    for d in saves_dir.iterdir():
+        if d.name.lower() == emu.lower():
+            return d
+    return None
+
+
+def _where(folders):
+    """{label: folder} for the folders roots() found, to turn file keys into real paths."""
+    return {label: path for _, label, path in folders}
+
+
+def _main_labels(folders):
+    """{kind: label of the first folder of that kind}: the emulator's main saves and states folders,
+    where a single file from RomM goes when its key doesn't say otherwise."""
+    main = {}
+    for kind, label, _ in folders:
+        main.setdefault(kind, label)
+    return main
 
 
 def snapshot(game):
@@ -154,15 +182,16 @@ def remember_session(rom_id, game, before, after):
     """Files that changed while the game ran now belong to this game (if they can be its saves)."""
     folders = roots(game)
     kind_of = {label: kind for kind, label, _ in folders}
-    where = {label: path for _, label, path in folders}
+    where = _where(folders)
     with _locked() as state:
         entry = _entry(state, rom_id, emu_for(game))
         for key, stat in after.items():
             label = key.split("/", 1)[0]
-            if before.get(key) == stat or label not in kind_of or key in entry["files"][kind_of[label]]:
-                continue
-            if _could_be_save(key, _path(where, key), game):
-                entry["files"][kind_of[label]].append(key)
+            if before.get(key) == stat or label not in kind_of:
+                continue  # unchanged, or not in a folder we watch
+            known = entry["files"][kind_of[label]]
+            if key not in known and _could_be_save(key, _path(where, key), game):
+                known.append(key)
 
 
 def _could_be_save(key, path, game):
@@ -190,7 +219,10 @@ def _inside_a_game(path):
     path = path.resolve()
     for g in config.load("installed").values():
         for p in (g.get("path"), g.get("launch")):
-            if p and (path == Path(p).resolve() or (Path(p).is_dir() and path.is_relative_to(Path(p).resolve()))):
+            if not p:
+                continue
+            game_path = Path(p).resolve()
+            if path == game_path or (game_path.is_dir() and path.is_relative_to(game_path)):
                 return True
     return False
 
@@ -218,32 +250,25 @@ def move_history(old_id, new_id):
 def not_on_romm(client, rom_id, game):
     """This game's save files that RomM doesn't hold an identical copy of: [key]. Empty = safe."""
     folders = roots(game)
-    where = {label: path for _, label, path in folders}
-    main = {}
-    for kind, label, _ in folders:
-        main.setdefault(kind, label)
+    where, main = _where(folders), _main_labels(folders)
     with _locked() as state:
         entry = _entry(state, rom_id, emu_for(game))
         _claim_by_name(entry, folders, game)
         _claim_switch(entry, folders, _switch_title(client, rom_id, game))
-        local = {}
+        local = {}  # key -> sha1 of the file on this PC (None: too big to sync, so never "safe")
         for kind in KINDS:
             for k in entry["files"][kind]:
                 p = _path(where, k)
                 if p is not None and p.is_file():
-                    local[k] = _sha1(p) if _usable(p) else None  # too big to sync: never "safe"
-    remote = {}
-    stem = Path(game["launch"]).stem if game.get("launch") else None
+                    local[k] = _sha1(p) if _usable(p) else None
+    remote = {}  # key -> sha1 of RomM's copy, after unpacking zips the same way a pull would
     for kind in KINDS:
-        chosen, _ = _choose(client.assets(kind, rom_id), kind, entry["emu"], stem)
+        chosen, _ = _choose(client.assets(kind, rom_id), kind, entry["emu"], _game_stem(game))
         for item, local_name in chosen:
-            name = item["file_name"]
             data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120)
-            if name.endswith(".romm.zip"):
-                with zipfile.ZipFile(io.BytesIO(data)) as z:
-                    remote.update({n: hashlib.sha1(z.read(n)).hexdigest() for n in z.namelist() if not n.endswith("/")})
-            elif kind in main:
-                remote[f"{main[kind]}/{local_name or name}"] = hashlib.sha1(data).hexdigest()
+            files = _unpack(item["file_name"], data, kind, main, local_name) or {}
+            for key, blob in files.items():
+                remote[key] = hashlib.sha1(blob).hexdigest()
     return [k for k, h in local.items() if h is None or remote.get(k) != h]
 
 
@@ -251,7 +276,7 @@ def delete_local(rom_id, game):
     """Delete this game's save files from the PC (call not_on_romm first!).
     Files another game also uses are kept. Returns (deleted, kept) file names."""
     folders = roots(game)
-    where = {label: path for _, label, path in folders}
+    where = _where(folders)
     deleted, kept = [], []
     with _locked() as state:
         entry = state.pop(str(rom_id), None)  # forget its sync history: a re-download pulls everything
@@ -269,12 +294,17 @@ def delete_local(rom_id, game):
                 p.unlink()
                 deleted.append(p.name)
                 config.removed_log(f"save of {game['name']}: {p}")
-                root = where[k.split("/", 1)[0]]
-                for parent in p.parents:  # tidy up folders the save left empty
-                    if parent == root or not parent.is_relative_to(root) or any(parent.iterdir()):
-                        break
-                    parent.rmdir()
+                _remove_empty_parents(p, where[k.split("/", 1)[0]])
     return deleted, kept
+
+
+def _remove_empty_parents(path, root):
+    """Remove the folders a deleted save left empty (a Switch game's numbered folder, say),
+    walking up from `path` but never removing `root` itself or anything outside it."""
+    for parent in path.parents:
+        if parent == root or not parent.is_relative_to(root) or any(parent.iterdir()):
+            break
+        parent.rmdir()
 
 
 # ---------- syncing ----------
@@ -296,6 +326,7 @@ def status(rom_id):
 
 
 def _mark(rom_id, ok, error=""):
+    """Record how the game's last sync went (sync-status.json), for the panel and Steam's Activity."""
     try:
         with config.editing("sync-status") as st:
             st[str(rom_id)] = {"ok": ok, "at": time.time(), "error": error[:200]}
@@ -315,26 +346,29 @@ def _sync(client, rom_id, game, direction="both", force=False):
     folders = roots(game)
     with _locked() as state:
         entry = _entry(state, rom_id, emu_for(game))
-        where = {label: path for _, label, path in folders}
-        first_label = {}
-        for kind, label, _ in folders:
-            first_label.setdefault(kind, label)
+        where, main = _where(folders), _main_labels(folders)
+        # saves made outside RomM Deck (an emulator's own card, a Switch game's numbered folder)
         _claim_by_name(entry, folders, game)
         _claim_switch(entry, folders, _switch_title(client, rom_id, game))
         down = up = 0
         other = []
-        stem = Path(game["launch"]).stem if game.get("launch") else None
         if direction in ("both", "pull"):
-            down, other = _pull(client, rom_id, entry, where, first_label, force, stem)
+            down, other = _pull(client, rom_id, entry, where, main, force, _game_stem(game))
         if direction in ("both", "push"):
-            up = _push(client, rom_id, entry, where, first_label, force)
-        on_romm = sum(1 for kind in KINDS for i in client.assets(kind, rom_id) if i.get("emulator") == entry["emu"])
+            up = _push(client, rom_id, entry, where, main, force)
+        # A last check that the uploads really landed under this game in RomM: if they didn't,
+        # the sync must fail loudly, because Remove relies on RomM holding every save.
+        on_romm = 0
+        for kind in KINDS:
+            on_romm += sum(1 for item in client.assets(kind, rom_id) if item.get("emulator") == entry["emu"])
         if up and not on_romm:
             raise RuntimeError(f"Uploaded {up} files, but RomM lists no saves for game #{rom_id}")
         return {"down": down, "up": up, "other": other, "on_romm": on_romm}
 
 
-def _push(client, rom_id, entry, where, first_label, force=False):
+def _push(client, rom_id, entry, where, main, force=False):
+    """Upload this game's files that changed since the last sync (all of them with force).
+    Returns how many files went up (each file in a zip counts)."""
     count = 0
     for kind in KINDS:
         keys = [k for k in entry["files"][kind] if _usable(_path(where, k))]
@@ -342,15 +376,21 @@ def _push(client, rom_id, entry, where, first_label, force=False):
         changed = keys if force else [k for k in keys if entry["hashes"].get(k) != hashes[k]]
         if not changed:
             continue
-        # {name on RomM: {file key: sha1}} for what we're about to upload
-        if _is_flat(keys, first_label.get(kind)):
+        # {name on RomM: {file key: sha1}} for what we're about to upload. One file each when the
+        # emulator keeps a flat folder; otherwise one zip with ALL the game's files, not just the
+        # changed ones, because a zip on RomM replaces the previous one entirely.
+        if _is_flat(keys, main.get(kind)):
             uploads = {k.split("/", 1)[1]: {k: hashes[k]} for k in changed}
         else:
             uploads = {f"{entry['emu']}-{kind}.romm.zip": {k: hashes[k] for k in keys}}
         if force:
             _backup_server_copies(client, rom_id, entry, kind, uploads)
         for name, files in uploads.items():
-            data = _zip(where, list(files)) if name.endswith(".romm.zip") else _path(where, next(iter(files))).read_bytes()
+            if name.endswith(".romm.zip"):
+                data = _zip(where, list(files))
+            else:
+                only_key = next(iter(files))
+                data = _path(where, only_key).read_bytes()
             _upload(client, rom_id, entry, kind, name, data)
         entry["hashes"].update(hashes)
         count += len(changed)
@@ -400,7 +440,13 @@ def _choose(items, kind, emu, stem):
     return chosen, sorted({i.get("emulator") or "unknown" for i in others})
 
 
-def _pull(client, rom_id, entry, where, first_label, force=False, stem=None):
+def _pull(client, rom_id, entry, where, main, force=False, stem=None):
+    """Download RomM's saves and states that are new since the last sync into the game's folders.
+    Returns (files written, emulators whose saves RomM has for this game but this PC can't use).
+
+    Before anything on this PC is overwritten, its copy is kept on RomM: as "backup-..." when the
+    user asked for RomM's copy (force), or as "conflict-..." when both sides changed (then the newer
+    one wins). That way no version of a save is ever lost."""
     count, other = 0, set()
     for kind in KINDS:
         chosen, left_out = _choose(client.assets(kind, rom_id), kind, entry["emu"], stem)
@@ -410,55 +456,88 @@ def _pull(client, rom_id, entry, where, first_label, force=False, stem=None):
             if entry["server"][kind].get(name) == stamp and not force:
                 continue  # we've already got this one
             data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120)
-            if name.endswith(".romm.zip"):
-                with zipfile.ZipFile(io.BytesIO(data)) as z:
-                    files = {n: z.read(n) for n in z.namelist() if not n.endswith("/")}
-            elif kind in first_label:  # a single file goes in the emulator's main folder
-                files = {f"{first_label[kind]}/{local_name or name}": data}
-            else:
-                continue
-
-            local = [k for k in files if _usable(_path(where, k))]
+            files = _unpack(name, data, kind, main, local_name)
+            if files is None:
+                continue  # a single file, but this emulator has no folder of that kind here
+            local = [k for k in files if _usable(_path(where, k))]  # what it would overwrite
             if force:
-                differs = [k for k in local if _sha1(_path(where, k)) != hashlib.sha1(files[k]).hexdigest()]
-                if differs:  # keep this PC's copy on RomM before replacing it
-                    mine = _zip(where, differs) if name.endswith(".romm.zip") else _path(where, differs[0]).read_bytes()
-                    _upload(client, rom_id, entry, kind, f"backup-{time.strftime('%Y%m%d-%H%M%S')}-{name}", mine, track=False)
-                    config.log.info("Replacing %s for rom %s with RomM's copy (backed up)", name, rom_id)
-            elif any(entry["hashes"].get(k) != _sha1(_path(where, k)) for k in local):
-                # Changed in both places. The newer copy wins; the other is kept on RomM as conflict-...
-                local_wins = max(_path(where, k).stat().st_mtime for k in local) > _timestamp(stamp)
-                if local_wins:
-                    loser = data
-                elif name.endswith(".romm.zip"):
-                    loser = _zip(where, local)
-                else:
-                    loser = _path(where, local[0]).read_bytes()
-                _upload(client, rom_id, entry, kind, f"conflict-{time.strftime('%Y%m%d-%H%M%S')}-{name}", loser, track=False)
-                config.log.info("Conflict on %s (rom %s): kept the %s copy", name, rom_id, "local" if local_wins else "RomM")
-                if local_wins:
-                    entry["server"][kind][name] = stamp
-                    for k in local:  # these files are this game's; push() uploads them next
-                        if k not in entry["files"][kind]:
-                            entry["files"][kind].append(k)
-                    continue
-
-            for key, blob in files.items():
-                if key.split("/", 1)[0] not in where and kind in first_label:
-                    # a folder this machine doesn't have: use the emulator's main one
-                    key = f"{first_label[kind]}/{key.split('/', 1)[1]}"
-                target = _path(where, key)
-                if target is None:
-                    continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(blob)
-                entry["hashes"][key] = hashlib.sha1(blob).hexdigest()
-                if key not in entry["files"][kind]:
-                    entry["files"][kind].append(key)
+                _back_up_local(client, rom_id, entry, kind, name, files, local, where)
+            elif _changed_since_sync(entry, where, local):
+                if _settle_conflict(client, rom_id, entry, kind, name, stamp, data, local, where):
+                    continue  # this PC's copy won: nothing to write
+            _write_pulled(entry, where, main, kind, files)
             entry["server"][kind][name] = stamp
             count += len(files)
             config.log.info("Downloaded %s %s for rom %s", kind, name, rom_id)
     return count, sorted(other)
+
+
+def _unpack(name, data, kind, main, local_name=None):
+    """A downloaded save as {file key: bytes}: a ".romm.zip" holds keys already; a single file goes
+    in the emulator's main folder for that kind, under `local_name` if given. None if there's no
+    such folder on this PC."""
+    if name.endswith(".romm.zip"):
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            return {n: z.read(n) for n in z.namelist() if not n.endswith("/")}
+    if kind in main:
+        return {f"{main[kind]}/{local_name or name}": data}
+    return None
+
+
+def _changed_since_sync(entry, where, keys):
+    """Has any of these files on this PC changed since the last sync?"""
+    return any(entry["hashes"].get(k) != _sha1(_path(where, k)) for k in keys)
+
+
+def _back_up_local(client, rom_id, entry, kind, name, files, local, where):
+    """Before RomM's copy replaces this PC's (force pull): upload this PC's copy as backup-<time>-<name>,
+    if it differs at all."""
+    differs = [k for k in local if _sha1(_path(where, k)) != hashlib.sha1(files[k]).hexdigest()]
+    if not differs:
+        return
+    if name.endswith(".romm.zip"):
+        mine = _zip(where, differs)
+    else:
+        mine = _path(where, differs[0]).read_bytes()
+    _upload(client, rom_id, entry, kind, f"backup-{time.strftime('%Y%m%d-%H%M%S')}-{name}", mine, track=False)
+    config.log.info("Replacing %s for rom %s with RomM's copy (backed up)", name, rom_id)
+
+
+def _settle_conflict(client, rom_id, entry, kind, name, stamp, data, local, where):
+    """A save changed both here and on RomM since the last sync. The newer copy wins; the other one is
+    uploaded as conflict-<time>-<name>, so it isn't lost. Returns True if this PC's copy won (then
+    nothing is downloaded, and the next push uploads it)."""
+    local_wins = max(_path(where, k).stat().st_mtime for k in local) > _timestamp(stamp)
+    if local_wins:
+        loser = data
+    elif name.endswith(".romm.zip"):
+        loser = _zip(where, local)
+    else:
+        loser = _path(where, local[0]).read_bytes()
+    _upload(client, rom_id, entry, kind, f"conflict-{time.strftime('%Y%m%d-%H%M%S')}-{name}", loser, track=False)
+    config.log.info("Conflict on %s (rom %s): kept the %s copy", name, rom_id, "local" if local_wins else "RomM")
+    if local_wins:
+        entry["server"][kind][name] = stamp  # RomM's version has been seen (and kept as conflict-...)
+        for k in local:  # these files are this game's; push() uploads them next
+            if k not in entry["files"][kind]:
+                entry["files"][kind].append(k)
+    return local_wins
+
+
+def _write_pulled(entry, where, main, kind, files):
+    """Write downloaded files into place and remember them as this game's, with their hashes."""
+    for key, blob in files.items():
+        if key.split("/", 1)[0] not in where and kind in main:
+            # a folder this machine doesn't have (the save came from another PC): use the main one
+            key = f"{main[kind]}/{key.split('/', 1)[1]}"
+        target = _path(where, key)
+        if target is None:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(blob)
+        entry["hashes"][key] = hashlib.sha1(blob).hexdigest()
+        if key not in entry["files"][kind]:
+            entry["files"][kind].append(key)
 
 
 def _claim_by_name(entry, folders, game):
@@ -498,13 +577,7 @@ def _switch_title(client, rom_id, game):
         with config.editing("installed") as games:  # remember it
             if str(rom_id) in games:
                 games[str(rom_id)]["title_id"] = tid
-    return _base_title(int(tid, 16)) if tid else None
-
-
-def _base_title(title_id):
-    """The base game's title id for an update's or DLC's (saves belong to the base game):
-    clear the low 12 bits, and make the 4th-from-last hex digit even."""
-    return (title_id & ~0xFFF) & ~0x1000
+    return systems.switch_base_title(int(tid, 16)) if tid else None
 
 
 def _switch_save_ids(base, title_id):
@@ -554,6 +627,10 @@ def _claim_switch(entry, folders, title_id):
 
 
 def _upload(client, rom_id, entry, kind, name, data, track=True):
+    """Upload one save or state file to RomM under this game and this PC's emulator.
+    `track`: remember it as the latest version of that file (not for backup-/conflict- copies).
+    Raises if RomM files it under another game, so a sync never reports success for a save that
+    went to the wrong place."""
     saved = client.upload(f"/api/{kind}", {"rom_id": rom_id, "emulator": entry["emu"]}, UPLOAD_FIELD[kind], name, data)
     config.log.info("RomM stored %s %s as #%s on game #%s", kind, saved.get("file_name"), saved.get("id"), saved.get("rom_id"))
     if str(saved.get("rom_id")) != str(rom_id):
@@ -578,6 +655,7 @@ def _locked():
 
 
 def _entry(state, rom_id, emu):
+    """The game's record in sync.json, created empty the first time."""
     return state.setdefault(str(rom_id), {
         "emu": emu,
         "files": {k: [] for k in KINDS},   # "label/path" keys that belong to this game
@@ -597,6 +675,7 @@ def _path(where, key):
 
 
 def _usable(path):
+    """A file that can be synced: it exists, and isn't too big to be a save (MAX_FILE)."""
     return path is not None and path.is_file() and path.stat().st_size <= MAX_FILE
 
 
@@ -606,11 +685,17 @@ def _is_flat(keys, main_label):
     Anything else goes in a zip, which remembers the folder each file came from.
     So do names RomM would change on upload (it swaps characters like : and ?),
     so they come back with the exact name the emulator looks for."""
-    return {k.split("/", 1)[0] for k in keys} == {main_label} and \
-        all("/" not in k.split("/", 1)[1] and not re.search(r'[\\:|*?"<>]', k) for k in keys)
+    if {k.split("/", 1)[0] for k in keys} != {main_label}:
+        return False  # some files are in another folder
+    for k in keys:
+        inside = k.split("/", 1)[1]
+        if "/" in inside or re.search(r'[\\:|*?"<>]', k):
+            return False  # in a sub-folder, or a name RomM would change
+    return True
 
 
 def _zip(where, keys):
+    """The files as a zip, each stored under its key (so a pull puts it back in the same folder)."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for k in keys:
@@ -619,6 +704,7 @@ def _zip(where, keys):
 
 
 def _sha1(path):
+    """A file's SHA-1, read in 1 MB pieces (a Switch save folder can be large)."""
     h = hashlib.sha1()
     with open(path, "rb") as f:
         while chunk := f.read(1024 * 1024):
@@ -627,10 +713,20 @@ def _sha1(path):
 
 
 def _timestamp(iso):
+    """RomM's ISO 8601 time as unix time. (Older Pythons don't accept a trailing "Z".)"""
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
 
 
 def emu_for(game):
-    """The emulator whose saves a downloaded game uses, or None if it isn't synced."""
+    """The emulator whose saves a downloaded game uses, or None if it isn't synced (unknown platform,
+    a platform whose saves can't be synced, or a game with nothing to launch)."""
     system = systems.SYSTEMS.get(game.get("system"))
-    return system["emu"] if system and system["sync"] and game.get("launch") else None
+    if system and system["sync"] and game.get("launch"):
+        return system["emu"]
+    return None
+
+
+def _game_stem(game):
+    """The game file's name without its extension, which emulators name saves after; None if it
+    has no launch file."""
+    return Path(game["launch"]).stem if game.get("launch") else None
