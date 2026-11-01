@@ -1,7 +1,7 @@
 {
   "name": "romm-deck",
-  "version": "0.1.0",
-  "description": "Decky plugin: download games from RomM into EmuDeck and sync saves back",
+  "version": "0.5.0-beta",
+  "description": "Decky Loader plugin: download games from your RomM server into EmuDeck, and sync saves and save states both ways",
   "private": true,
   "type": "module",
   "scripts": {
