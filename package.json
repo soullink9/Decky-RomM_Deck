@@ -1,0 +1,16 @@
+{
+  "name": "romm-deck",
+  "version": "0.1.0",
+  "description": "Decky plugin: download games from RomM into EmuDeck and sync saves back",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "package": "node build.mjs && sh package.sh",
+    "test": "python3 tests/test_plugin.py && python3 tests/test_motion.py && node tests/test_cards.mjs && node tests/test_current.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  },
+  "license": "BSD-3-Clause"
+}

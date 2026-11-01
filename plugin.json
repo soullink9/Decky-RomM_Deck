@@ -1,0 +1,11 @@
+{
+  "name": "RomM Deck",
+  "author": "soullink9",
+  "flags": [],
+  "api_version": 1,
+  "publish": {
+    "tags": ["romm", "emudeck"],
+    "description": "Download games from your RomM server into EmuDeck, and sync saves and save states back.",
+    "image": ""
+  }
+}
