@@ -7,7 +7,8 @@ On a ROG Ally / Xbox Ally (X), "motion" presets:
   it under InputPlumber). EmuDeck already points Cemu and Azahar at that address; the preset only
   sets it where it isn't. The motion is calibrated once from the game page (motion.calibrate).
 On any device:
-  Wii (Dolphin): use real Wii Remotes for all four players instead of emulated ones.
+  Wii (Dolphin): use real Wii Remotes for all four players instead of emulated ones, and say whether
+  Dolphin can use a Wii Remote sensor on USB (a DolphinBar in mode 4).
 
 Every change is recorded first (settings/controller-backup.json), and after the game a setting is
 only put back if it still has the preset's value, so a change you make in the emulator is kept.
@@ -62,6 +63,11 @@ CEMU_DSU = f"""	<controller>
 """
 AZAHAR_DSU = "engine:cemuhookudp"  # Azahar: a profile's motion_device (address and port default to ours)
 REAL_WIIMOTE = "2"  # Dolphin's [WiimoteN] Source: 0 none, 1 emulated, 2 real
+# Dolphin talks to Wii Remotes on USB (a Mayflash DolphinBar in mode 4) through their raw HID device files.
+# The kernel lists each one under /sys/class/hidraw with its bus and USB ids; the file itself is /dev/hidrawN.
+HIDRAW, DEV = Path("/sys/class/hidraw"), Path("/dev")
+USB_BUS = "0003"  # the bus number in HID_ID (Bluetooth is 0005)
+WII_REMOTE_IDS = ("0000057E:00000306", "0000057E:00000330")  # Nintendo's ids: Wii Remote, Wii Remote Plus
 
 
 # ---------- what each preset changes ----------
@@ -125,9 +131,50 @@ def _dolphin_real_wiimotes():
     return changes
 
 
+def _usb_wii_remotes():
+    """The Wii Remote slots on USB: (how many Dolphin can open, how many it can't).
+
+    A DolphinBar only shows up as Wii Remotes in mode 4; in modes 1-3 it's a mouse, keyboard or gamepad,
+    and Dolphin then has no real remote to connect, so the game gets nothing from it. Remotes on Bluetooth
+    don't appear here: Dolphin finds those itself."""
+    usable = blocked = 0
+    try:
+        entries = sorted(HIDRAW.iterdir())
+    except OSError:
+        return 0, 0  # no raw HID devices at all
+    for entry in entries:
+        ids = ""
+        for line in _read(entry / "device" / "uevent").splitlines():
+            if line.startswith("HID_ID="):
+                ids = line[len("HID_ID="):].upper()
+        bus, _, device_ids = ids.partition(":")
+        if bus != USB_BUS or device_ids not in WII_REMOTE_IDS:
+            continue
+        # Dolphin runs as this same user, so it can open the file exactly when this process can
+        if os.access(DEV / entry.name, os.R_OK | os.W_OK):
+            usable += 1
+        else:
+            blocked += 1
+    return usable, blocked
+
+
+def _wii_remotes_running():
+    """What the popup and the game page say during a Wii game: whether Dolphin can use a Wii Remote sensor
+    on USB, so a remote that doesn't connect has a reason next to it."""
+    usable, blocked = _usb_wii_remotes()
+    if blocked:
+        config.log.warning("Wii Remote sensor on USB: Dolphin can open %d slot(s), not %d", usable, blocked)
+        return ("using real Wii Remotes, but Dolphin isn't allowed to open the Wii Remote sensor on USB "
+                "(see Troubleshooting)")
+    if usable:
+        return "using real Wii Remotes on the USB sensor (press 1+2 on each to connect)"
+    return "using real Wii Remotes (press 1+2 on each to connect; a DolphinBar has to be in mode 4)"
+
+
 # The presets on offer. DEVICES: only on that handheld (recognised by its firmware's name);
 # ANY_DEVICE: everywhere. Each preset: a label and description for the game page, whether it needs
-# the motion server, and plan(), which lists the settings to change for one game.
+# the motion server, plan(), which lists the settings to change for one game, and optionally running(),
+# which says what's going on during the game (by default, that it's reading the Ally's motion).
 ALLY_MOTION = "Motion and tilt from the Ally's own sensor"
 DEVICES = {
     "rog-ally": {
@@ -147,8 +194,9 @@ DEVICES = {
 ANY_DEVICE = {
     "wii": {"label": "Use my real Wii Remotes", "motion": False, "plan": _dolphin_real_wiimotes,
             "about": "Dolphin uses real Wii Remotes for all four players instead of emulated ones; press 1+2 on "
-                     "a remote to connect it. Your own Dolphin settings come back when the game closes.",
-            "running": "using real Wii Remotes (press 1+2 on each to connect)"},
+                     "a remote to connect it. A DolphinBar has to be in mode 4. Your own Dolphin settings come "
+                     "back when the game closes.",
+            "running": _wii_remotes_running},
 }
 
 
@@ -220,7 +268,7 @@ def apply(game, launcher_pid=None):
     for c in changes:
         _set(c, c["ours"])
     config.log.info("Controller preset on for %s (%s): %d settings changed", game["name"], platform, len(changes))
-    running = preset.get("running", "reading the Ally's motion")
+    running = preset["running"]() if "running" in preset else "reading the Ally's motion"
     return _report(platform, True, f"{preset['label']} · {running}")
 
 

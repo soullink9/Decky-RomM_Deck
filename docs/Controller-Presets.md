@@ -32,6 +32,10 @@ sensor a different way (after an InputPlumber update, say), the next game's popu
 **Wii** (Dolphin): all four players use real Wii Remotes instead of emulated ones, and Dolphin keeps looking
 for them, so pressing **1+2** on a remote connects it at any time during the game.
 
+Remotes can connect over Bluetooth or through a USB Wii Remote sensor such as a Mayflash DolphinBar (on the
+handheld or its dock). A DolphinBar has to be in **mode 4**, its Wii Remote mode. When the game starts, the popup
+says whether Dolphin can use a sensor on USB; [Troubleshooting](Troubleshooting.md) explains each message.
+
 ## How your settings are kept safe
 
 - Every setting a preset will change is recorded first, so it's put back after the game, also after a crash or

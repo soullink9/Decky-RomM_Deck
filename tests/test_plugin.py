@@ -1011,10 +1011,35 @@ async def test():
     check(info and info["label"] == "Use my real Wii Remotes" and info["motion"] is False, f"Wii preset offered: {info and info['label']}")
     await P.set_preset("wii", True)
     calibration = config.load(MO.CALIBRATION); config.save(MO.CALIBRATION, {})  # (doesn't need motion calibrated)
+    # raw HID devices: a fake /sys/class/hidraw and /dev, with a gamepad on USB and a Wii Remote on Bluetooth
+    hidraw, dev = FAKE / "hidraw", FAKE / "dev"; dev.mkdir()
+    PR.HIDRAW, PR.DEV = hidraw, dev
+    def hid_device(name, hid_id, openable=True):
+        (hidraw / name / "device").mkdir(parents=True)
+        (hidraw / name / "device/uevent").write_text(f"DRIVER=hid-generic\nHID_ID={hid_id}\nHID_NAME=test\n")
+        if openable:
+            (dev / name).write_text("")
+    hid_device("hidraw0", "0003:0000045E:0000028E")  # a USB gamepad
+    hid_device("hidraw1", "0005:0000057E:00000306")  # a Wii Remote paired over Bluetooth: Dolphin finds those itself
     ok, text = PR.apply(wii, os.getpid())
     sources = [INI.get_value(wm, f"Wiimote{n}", "Source") for n in range(1, 5)]
     check(ok and sources == ["2"] * 4 and INI.get_value(core, "Core", "WiimoteContinuousScanning") == "True" and dsu_reading()[0] == "no-motion",
           f"during a Wii game: all four Wii Remotes real, Dolphin keeps looking for them, no motion server ({text})")
+    check("DolphinBar has to be in mode 4" in text and "mode 4" in config.load(PR.STATUS)["wii"],
+          f"no Wii Remote sensor on USB: the popup and the game page say a DolphinBar needs mode 4 ({text})")
+    PR.restore()
+    hid_device("hidraw2", "0003:0000057e:00000306")  # a DolphinBar in mode 4 (ids in either case)
+    hid_device("hidraw3", "0003:0000057E:00000330")
+    ok, text = PR.apply(wii, os.getpid())
+    check(ok and "on the USB sensor" in text, f"a DolphinBar in mode 4 that Dolphin can open: said so ({text})")
+    PR.restore()
+    hid_device("hidraw4", "0003:0000057E:00000306", openable=False)  # a slot Dolphin isn't allowed to open
+    ok, text = PR.apply(wii, os.getpid())
+    check(ok and "isn't allowed to open the Wii Remote sensor" in text and INI.get_value(wm, "Wiimote1", "Source") == "2",
+          f"a sensor Dolphin can't open: the preset still applies, and says why remotes on it won't connect ({text})")
+    shutil.rmtree(hidraw); PR.HIDRAW = hidraw  # no raw HID devices at all
+    ok, text = PR.apply(wii, os.getpid())
+    check(ok and "mode 4" in text, f"no raw HID devices at all: no error ({text})")
     check("[Wiimote1]\nSource = 2\nDevice = SDL/0/Steam Deck Controller" in wm.read_text() or "Source = 2" in wm.read_text().split("[Wiimote2]")[0],
           "…written in Dolphin's own style, inside each remote's section")
     INI.set_value(wm, "Wiimote4", "Source", "0")  # you turn off player 4 in Dolphin during the game

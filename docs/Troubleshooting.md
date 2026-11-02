@@ -53,6 +53,20 @@ The popup when the game starts says why. Usually it's **Calibrate motion** (on t
 If another program is using the motion port, the popup says so too. See
 [Controller Presets](Controller-Presets.md).
 
+**Wii: the game uses an emulated Wii Remote, not my real ones.**
+"Use my real Wii Remotes" works for Wii games started from a RomM Deck card (or an EmuDeck card RomM Deck has
+taken over), and only while it's turned on in that game's page. The popup when the game starts, and the line
+under the preset on the game page, say what Dolphin can see:
+
+- *a DolphinBar has to be in mode 4*: no Wii Remote sensor in Wii Remote mode is plugged in. On a Mayflash
+  DolphinBar, press its mode button until the LED for mode 4 lights. In modes 1 to 3 the DolphinBar turns the
+  remote into a mouse, keyboard or gamepad, so the game gets an emulated remote moved by it instead.
+- *on the USB sensor*: Dolphin can use the DolphinBar; press 1+2 (or the DolphinBar's sync button) on each remote.
+- *Dolphin isn't allowed to open the Wii Remote sensor on USB*: the system doesn't give apps access to the
+  DolphinBar's Wii Remote slots, so remotes on it can't connect. Remotes over Bluetooth still can.
+
+If there's no "Controller preset on" popup when the game starts, the preset wasn't used for that launch.
+
 **My EmuDeck card went back to its old command.**
 Steam ROM Manager puts its own commands back when it runs. RomM Deck takes the card back the next time it loads,
 or press **Sync saves on all my Steam cards**.
