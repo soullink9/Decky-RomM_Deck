@@ -11,10 +11,23 @@
 
 ## Installing the plugin
 
-1. Download `romm-deck.zip` from the [latest release](https://github.com/soullink9/Decky-RomM_Deck/releases).
-2. In Game Mode, open Decky's settings (the cog in the Decky tab of the Quick Access menu), turn on
-   **Developer mode**, then go to **Developer → Install plugin from ZIP** and pick the zip.
+1. In Game Mode, open Decky's settings (the cog in the Decky tab of the Quick Access menu) and turn on
+   **Developer mode**.
+2. Go to **Developer → Install plugin from URL**, enter this address and confirm:
+
+   ```
+   https://github.com/soullink9/Decky-RomM_Deck/releases/latest/download/romm-deck.zip
+   ```
+
 3. **RomM Deck** appears in the Decky tab.
+
+That address always gets the newest full release. For a specific version, or a pre-release (`-beta`), use the
+address in that [release](https://github.com/soullink9/Decky-RomM_Deck/releases)'s notes: pre-releases don't
+count as the latest. The address has to be the zip itself; a release page's address is a web page, and Decky
+stops on it at "Parsing zip file".
+
+Without a network on the handheld: download `romm-deck.zip` from a release, copy it over, and use
+**Developer → Install plugin from ZIP** instead.
 
 ## The RomM token
 
@@ -53,8 +66,8 @@ works before saving it.
 
 ## Updating
 
-Install the new `romm-deck.zip` the same way (Developer → Install plugin from ZIP). Your settings, games,
-cards and save history carry over. The [changelog](../CHANGELOG.md) lists what changed.
+Install it the same way: **Developer → Install plugin from URL** with the same address gets the newest
+release. Your settings, games, cards and save history carry over. The [changelog](../CHANGELOG.md) lists what changed.
 
 ## Removing
 

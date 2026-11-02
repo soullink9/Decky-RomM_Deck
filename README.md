@@ -32,8 +32,9 @@ commands.
 
 **Needs:** Decky Loader with Developer mode on, EmuDeck, and a RomM server (developed against 5.4.1).
 
-1. **Install.** Decky settings → Developer → **Install plugin from ZIP** → `romm-deck.zip` from the
-   [latest release](https://github.com/soullink9/Decky-RomM_Deck/releases).
+1. **Install.** Decky settings → Developer → **Install plugin from URL**, and enter
+   `https://github.com/soullink9/Decky-RomM_Deck/releases/latest/download/romm-deck.zip`
+   ([other ways](docs/Installation.md#installing-the-plugin)).
 2. **Get a pairing code.** In RomM's web UI: Settings → **Client API Tokens** → create a token with the
    permissions in [Installation](docs/Installation.md#the-romm-token), then choose **Pair device**.
 3. **Pair.** Open RomM Deck in the Quick Access menu and enter your RomM address and the code.

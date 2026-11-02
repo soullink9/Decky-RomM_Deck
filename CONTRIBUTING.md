@@ -48,7 +48,7 @@ You need Node.js and Python 3.10 or newer.
 | `npm run build` | builds `dist/index.js` |
 | `npm test` | every change: runs every suite below |
 | `python3.10 tests/test_plugin.py` | every backend change, on Decky's Python version |
-| `npm run package` | builds `romm-deck.zip`, to try a change on a real handheld |
+| `npm run package` | builds `romm-deck.zip`, to try a change on a real handheld, and checks Decky can install it |
 
 `npm test` runs:
 
@@ -108,7 +108,8 @@ repository as a whole. One logical change per commit.
    - or push a version tag: `git tag v0.5.1-beta && git push origin v0.5.1-beta`.
 
    The workflow checks the version matches `package.json`, the backend and `CHANGELOG.md`, runs every test on
-   Python 3.10, builds `romm-deck.zip`, and publishes the release with the zip and that version's changelog
+   Python 3.10, builds `romm-deck.zip` and checks Decky can install it (`.github/scripts/check_package.py`, the
+   same rules Decky's installer applies), and publishes the release with the zip and that version's changelog
    section as its notes. A version with a suffix (`-beta`) is published as a pre-release. If any check fails,
    nothing is published. A release started by hand on GitHub gets the zip and notes added to it.
 

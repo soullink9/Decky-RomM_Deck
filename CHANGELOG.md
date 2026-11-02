@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.5.0-beta (2026-11-01)
+## Unreleased
+
+### Install
+
+- Install from a link: each release's notes give the zip's download address for Decky's **Install plugin
+  from URL**, and the [installation guide](docs/Installation.md) has one that always gets the latest release.
+- Every `romm-deck.zip` is checked the way Decky reads it before it's published, so a release can't stop at
+  "Parsing zip file".
+
+## 0.5.0 (2026-11-01)
 
 Initial release: the first public beta of RomM Deck, a Decky Loader plugin for RomM and EmuDeck. The
 [documentation](README.md#documentation) covers every feature below.

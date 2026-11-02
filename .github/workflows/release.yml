@@ -67,7 +67,10 @@ jobs:
       - name: Run every test
         run: npm test
 
-      - name: Build romm-deck.zip
+      # package.sh also checks the zip the way Decky reads it (check_package.py), so the build stops here
+      # rather than publishing a zip that Decky's "Install plugin from URL" can't install. The asset keeps
+      # the same name in every release: .../releases/latest/download/romm-deck.zip relies on it.
+      - name: Build romm-deck.zip, and check Decky can install it
         run: npm run package
 
       - name: Publish

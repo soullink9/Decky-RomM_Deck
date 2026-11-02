@@ -6,8 +6,10 @@ Used by .github/workflows/release.yml:  python3 .github/scripts/release_notes.py
 1. The tag must name the version in package.json and py_modules/romm_deck/__init__.py (a leading "v" and
    letter case are ignored, so v0.5.0-Beta matches 0.5.0-beta). A mismatch fails the release, so a zip is
    never published under the wrong version.
-2. The notes are short install steps, then that version's section of CHANGELOG.md. Links in the changelog
-   are relative to the repository; they're made absolute (at the tag) so they work on the release page.
+2. The notes are short install steps, with the zip's download link for Decky's "Install plugin from URL"
+   (a link to the zip itself: the release page's own address is a web page, and Decky stops on it at
+   "Parsing zip file"), then that version's section of CHANGELOG.md. Links in the changelog are relative to
+   the repository; they're made absolute (at the tag) so they work on the release page.
 
 Prints "prerelease=true" or "prerelease=false" for the workflow: versions with a suffix (0.5.0-beta) are
 published as pre-releases. Exits non-zero, with the reason, when the release must not go ahead.
@@ -30,9 +32,10 @@ def plugin_versions():
 
 
 def changelog_section(version):
-    """CHANGELOG.md's section for `version` (the text under "## <version> (date)"), or None."""
+    """CHANGELOG.md's section for `version` (the text under "## <version> (date)"), or None.
+    The version has to match the heading's whole version: 0.5.0 doesn't take 0.5.0-beta's section."""
     text = (ROOT / "CHANGELOG.md").read_text()
-    heading = re.compile(rf"^## {re.escape(version)}\b.*$", re.M | re.I)
+    heading = re.compile(rf"^## {re.escape(version)}(?=\s|$).*$", re.M | re.I)
     start = heading.search(text)
     if not start:
         return None
@@ -69,12 +72,13 @@ def main():
     if not section:
         sys.exit(f"CHANGELOG.md has no section for {package}: add one first")
 
+    zip_url = f"https://github.com/{repo}/releases/download/{tag}/romm-deck.zip"
     install = (
         "## Install\n\n"
-        "1. Download **romm-deck.zip** below.\n"
-        "2. In Game Mode: Decky settings → **Developer mode** on → Developer → **Install plugin from ZIP** → "
-        "pick the zip.\n"
-        "3. In RomM's web UI, create a client API token and choose **Pair device**, then enter your RomM address "
+        "1. In Game Mode: Decky settings → **Developer mode** on → Developer → **Install plugin from URL**, and "
+        f"enter:\n\n   ```\n   {zip_url}\n   ```\n\n"
+        "   (or download **romm-deck.zip** below and use **Install plugin from ZIP**).\n"
+        "2. In RomM's web UI, create a client API token and choose **Pair device**, then enter your RomM address "
         "and the code in RomM Deck. [Installation](docs/Installation.md) lists the token's permissions.\n\n"
     )
     notes = install + "## What's in it\n\n" + section + "\n"

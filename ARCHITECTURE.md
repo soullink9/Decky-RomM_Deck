@@ -78,8 +78,9 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `tests/` | The test suites and a fake RomM server (see [Tests](#tests)) |
 | `docs/` | The user documentation: the README is the front page, every other page sits in here |
 | `.github/ISSUE_TEMPLATE/` | The bug-report form |
-| `.github/workflows/release.yml`, `.github/scripts/release_notes.py` | Publishes a GitHub release (Run workflow button, or a pushed version tag): checks the version, runs the tests, builds the zip, writes the notes from CHANGELOG.md |
-| `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky |
+| `.github/workflows/release.yml`, `.github/scripts/release_notes.py` | Publishes a GitHub release (Run workflow button, or a pushed version tag): checks the version, runs the tests, builds the zip, writes the notes (with the zip's install-from-URL address) from CHANGELOG.md |
+| `.github/scripts/check_package.py` | Checks `romm-deck.zip` the way Decky's installer reads it (one folder, `plugin.json` inside it, the files Decky loads), run by every `package.sh` |
+| `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky and checks the zip |
 
 ## How data flows
 

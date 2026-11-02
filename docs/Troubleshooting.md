@@ -67,6 +67,11 @@ under the preset on the game page, say what Dolphin can see:
 
 If there's no "Controller preset on" popup when the game starts, the preset wasn't used for that launch.
 
+**Installing from a URL stops at "Parsing zip file".**
+Decky got something that isn't the plugin's zip. Use the address in
+[Installation](Installation.md#installing-the-plugin), which ends in `/romm-deck.zip`; the address of a
+release's page doesn't work. A pre-release isn't the latest release, so use the address in its release notes.
+
 **My EmuDeck card went back to its old command.**
 Steam ROM Manager puts its own commands back when it runs. RomM Deck takes the card back the next time it loads,
 or press **Sync saves on all my Steam cards**.
