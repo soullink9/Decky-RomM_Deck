@@ -33,7 +33,7 @@ py_modules/romm_deck/    the backend's modules, shared with the game launcher
 bin/                     the game launcher every card runs, and the motion server
 docs/                    the documentation pages (the README is the front page)
 tests/                   the tests, a fake RomM server and emulator config fixtures
-.github/                 the bug-report form
+.github/                 the bug-report form and the release workflow
 ```
 
 [ARCHITECTURE.md](ARCHITECTURE.md#repository-layout) describes every file.
@@ -100,10 +100,13 @@ repository as a whole. One logical change per commit.
 
 1. Change the version in `package.json` and `py_modules/romm_deck/__init__.py`. They must match (a test checks
    this). The project is in beta (`0.x`); version 1.0 is the maintainer's decision only.
-2. Add the release to [CHANGELOG.md](CHANGELOG.md).
+2. Add the release to [CHANGELOG.md](CHANGELOG.md), under a heading `## X.Y.Z-beta (date)`.
 3. Run `npm test`, and `python3.10 tests/test_plugin.py`.
-4. Commit and push. To publish a GitHub release, tag it `vX.Y.Z-beta` (for example `v0.5.1-beta`) and attach the
-   `romm-deck.zip` from `npm run package`.
+4. Commit and push, then create the tag `vX.Y.Z-beta` (for example `v0.5.1-beta`): push it with git, or create it
+   on GitHub. The **Release** workflow (`.github/workflows/release.yml`) then does the rest: it checks the tag
+   matches the version, runs every test on Python 3.10, builds `romm-deck.zip`, and publishes the release with
+   the zip and that version's changelog section as its notes. A version with a suffix (`-beta`) is published as a
+   pre-release. If any check fails, nothing is published; fix it, delete the tag, and tag again.
 
 ## Reporting bugs
 
