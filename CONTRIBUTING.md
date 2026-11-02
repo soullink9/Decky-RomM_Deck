@@ -102,11 +102,15 @@ repository as a whole. One logical change per commit.
    this). The project is in beta (`0.x`); version 1.0 is the maintainer's decision only.
 2. Add the release to [CHANGELOG.md](CHANGELOG.md), under a heading `## X.Y.Z-beta (date)`.
 3. Run `npm test`, and `python3.10 tests/test_plugin.py`.
-4. Commit and push, then create the tag `vX.Y.Z-beta` (for example `v0.5.1-beta`): push it with git, or create it
-   on GitHub. The **Release** workflow (`.github/workflows/release.yml`) then does the rest: it checks the tag
-   matches the version, runs every test on Python 3.10, builds `romm-deck.zip`, and publishes the release with
-   the zip and that version's changelog section as its notes. A version with a suffix (`-beta`) is published as a
-   pre-release. If any check fails, nothing is published; fix it, delete the tag, and tag again.
+4. Commit and push, then publish with the **Release** workflow (`.github/workflows/release.yml`), either way:
+   - **Actions → Release → Run workflow**, and enter the version without the `v` (for example `0.5.1-beta`). It
+     creates the tag `v0.5.1-beta` on the branch you run it from.
+   - or push a version tag: `git tag v0.5.1-beta && git push origin v0.5.1-beta`.
+
+   The workflow checks the version matches `package.json`, the backend and `CHANGELOG.md`, runs every test on
+   Python 3.10, builds `romm-deck.zip`, and publishes the release with the zip and that version's changelog
+   section as its notes. A version with a suffix (`-beta`) is published as a pre-release. If any check fails,
+   nothing is published. A release started by hand on GitHub gets the zip and notes added to it.
 
 ## Reporting bugs
 
