@@ -46,7 +46,8 @@ Initial release: the first public beta of RomM Deck, a Decky Loader plugin for R
 
 - Motion (gyro and tilt) from the ROG Ally / Xbox Ally's own sensor for Switch (Ryujinx), Wii U (Cemu)
   and 3DS (Azahar), served to the emulator while the game runs, with a one-time calibration.
-- "Use my real Wii Remotes" for Wii (Dolphin), on any device.
+- "Use my real Wii Remotes" for Wii (Dolphin), on any device, over Bluetooth or a Mayflash DolphinBar in mode 4.
+  The popup says whether Dolphin can use a DolphinBar, and when it needs switching to mode 4.
 - Every setting a preset changes is put back after the game, also after a crash, and changes you
   make in the emulator meanwhile are kept.
 
