@@ -61,7 +61,8 @@ Initial release: the first public beta of RomM Deck, a Decky Loader plugin for R
   and a [code of conduct](CODE_OF_CONDUCT.md).
 - Tests that run without Steam or Decky: the whole backend against a fake RomM server, the motion server, and the
   frontend's Steam card handling.
-- A bug-report form, and a release workflow: pushing a version tag tests, builds and publishes the release.
+- A bug-report form, and a release workflow: enter a version (or push a version tag) and it tests, builds and
+  publishes the release.
 
 ### Known limitations
 

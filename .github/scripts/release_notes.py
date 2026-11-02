@@ -1,6 +1,7 @@
 """Checks a release tag against the plugin's version, and writes the GitHub release's notes.
 
 Used by .github/workflows/release.yml:  python3 .github/scripts/release_notes.py <tag> <owner/repo> <notes file>
+(the tag is v<version>, whether the release was started from the Run workflow button or by pushing a tag)
 
 1. The tag must name the version in package.json and py_modules/romm_deck/__init__.py (a leading "v" and
    letter case are ignored, so v0.5.0-Beta matches 0.5.0-beta). A mismatch fails the release, so a zip is
@@ -63,7 +64,7 @@ def main():
     if package != backend:
         sys.exit(f"package.json says {package} but romm_deck/__init__.py says {backend}: make them match first")
     if version.lower() != package.lower():
-        sys.exit(f"Tag {tag} doesn't match the plugin's version {package}: tag v{package}, or change the version first")
+        sys.exit(f"{version} isn't the plugin's version ({package}): release {package}, or change the version first")
     section = changelog_section(package)
     if not section:
         sys.exit(f"CHANGELOG.md has no section for {package}: add one first")

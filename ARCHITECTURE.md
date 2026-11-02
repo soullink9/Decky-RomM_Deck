@@ -78,7 +78,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `tests/` | The test suites and a fake RomM server (see [Tests](#tests)) |
 | `docs/` | The user documentation: the README is the front page, every other page sits in here |
 | `.github/ISSUE_TEMPLATE/` | The bug-report form |
-| `.github/workflows/release.yml`, `.github/scripts/release_notes.py` | Publishes a GitHub release when a version tag is pushed: checks the version, runs the tests, builds the zip, writes the notes from CHANGELOG.md |
+| `.github/workflows/release.yml`, `.github/scripts/release_notes.py` | Publishes a GitHub release (Run workflow button, or a pushed version tag): checks the version, runs the tests, builds the zip, writes the notes from CHANGELOG.md |
 | `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky |
 
 ## How data flows
