@@ -76,6 +76,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `src/ui.tsx` | Small visual pieces: icons, covers, status lines |
 | `src/decky.ts` | The bridge to Decky Loader's and Steam's globals |
 | `tests/` | The test suites and a fake RomM server (see [Tests](#tests)) |
+| `assets/brand/` | The plugin's icon: `icon.svg` is the source, `icon.png` (256 px) and `icon@2x.png` (512 px) are exported from it |
 | `docs/` | The user documentation: the README is the front page, every other page sits in here |
 | `.github/ISSUE_TEMPLATE/` | The bug-report form |
 | `.github/workflows/release.yml`, `.github/scripts/release_notes.py` | Publishes a GitHub release (Run workflow button, or a pushed version tag): checks the version, runs the tests, builds the zip, writes the notes (with the zip's install-from-URL address) from CHANGELOG.md |

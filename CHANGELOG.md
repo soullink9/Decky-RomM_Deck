@@ -9,6 +9,10 @@
 - Every `romm-deck.zip` is checked the way Decky reads it before it's published, so a release can't stop at
   "Parsing zip file".
 
+### Repository
+
+- A brand icon for RomM Deck, in `assets/brand/`.
+
 ## 0.5.0 (2026-11-01)
 
 Initial release: the first public beta of RomM Deck, a Decky Loader plugin for RomM and EmuDeck. The

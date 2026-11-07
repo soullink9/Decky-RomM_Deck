@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- RomM Deck brand icon: a handheld whose screen shows a game cartridge, with a sync badge for saves.
+       Source for icon.png (256 px) and icon@2x.png (512 px) next to it; re-export both after changing it. -->
+  <defs>
+    <linearGradient id="badge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.75" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="cart" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <linearGradient id="sync" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0b0820" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- badge -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#badge)"/>
+  <rect x="24" y="24" width="464" height="232" rx="112" fill="url(#shine)"/>
+
+  <!-- handheld -->
+  <g filter="url(#shadow)" transform="translate(256 250) scale(0.86) translate(-256 -270)">
+    <path d="M118 176h276c44 0 70 30 76 74l12 84c5 36-18 60-48 60-22 0-36-12-46-30l-14-26H138l-14 26c-10 18-24 30-46 30-30 0-53-24-48-60l12-84c6-44 32-74 76-74z" fill="url(#body)"/>
+    <!-- screen -->
+    <rect x="160" y="196" width="192" height="128" rx="16" fill="url(#screen)"/>
+    <!-- cartridge on the screen -->
+    <path d="M226 218h52l14 14v70a8 8 0 0 1-8 8h-58a8 8 0 0 1-8-8v-76a8 8 0 0 1 8-8z" fill="url(#cart)"/>
+    <rect x="232" y="236" width="48" height="30" rx="5" fill="#ecfeff"/>
+    <path d="M232 292h48" stroke="#0e7490" stroke-width="6" stroke-linecap="round" stroke-dasharray="2 10"/>
+    <!-- left stick -->
+    <circle cx="104" cy="252" r="27" fill="#334155"/>
+    <circle cx="104" cy="252" r="17" fill="#475569"/>
+    <!-- right buttons -->
+    <g fill="#334155">
+      <circle cx="408" cy="226" r="11"/>
+      <circle cx="408" cy="278" r="11"/>
+      <circle cx="382" cy="252" r="11"/>
+      <circle cx="434" cy="252" r="11"/>
+    </g>
+  </g>
+
+  <!-- sync badge -->
+  <g transform="translate(380 380) scale(0.9)">
+    <circle r="70" fill="#1e1b4b"/>
+    <circle r="58" fill="url(#sync)"/>
+    <g fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round">
+      <path d="M-30 -6a31 31 0 0 1 54-18"/>
+      <path d="M30 6a31 31 0 0 1-54 18"/>
+    </g>
+    <path d="M30 -40v24h-24z" fill="#ffffff" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-30 40v-24h24z" fill="#ffffff" stroke="#ffffff" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg>

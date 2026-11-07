@@ -10,6 +10,8 @@ Note: Built with the assistance of Claude.ai. I’m putting it here now so you d
 
 # RomM Deck
 
+<img src="assets/brand/icon.png" alt="RomM Deck icon" width="96" align="right">
+
 A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that brings your self-hosted
 [RomM](https://github.com/rommapp/romm) library into Game Mode on a Bazzite or SteamOS handheld running
 [EmuDeck](https://www.emudeck.com/). Everything is done from the Quick Access menu: no terminal and no

@@ -31,6 +31,7 @@ src/                     the frontend (TypeScript): panel, Steam cards, Steam ga
 main.py                  the backend's entry point, the class Decky loads
 py_modules/romm_deck/    the backend's modules, shared with the game launcher
 bin/                     the game launcher every card runs, and the motion server
+assets/brand/            the plugin's icon (icon.svg, and the PNGs exported from it)
 docs/                    the documentation pages (the README is the front page)
 tests/                   the tests, a fake RomM server and emulator config fixtures
 .github/                 the bug-report form and the release workflow
