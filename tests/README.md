@@ -7,6 +7,7 @@ script that prints `PASS` or `FAIL` per check and exits non-zero if anything fai
 |---|---|
 | `test_plugin.py` | The whole backend, through the real `Plugin` class in `main.py` |
 | `test_motion.py` | The motion sensor readers, calibration and the DSU motion server |
+| `test_release.py` | The release scripts in `scripts/`, including publishing to a fake Gitea server |
 | `test_cards.mjs` | Making and taking over Steam cards (`src/cards.ts`) |
 | `test_current.mjs` | Which game the panel opens on (`src/current.ts`) |
 

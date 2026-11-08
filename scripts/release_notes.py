@@ -1,7 +1,9 @@
-"""Checks a release tag against the plugin's version, and writes the GitHub release's notes.
+"""Checks a release tag against the plugin's version, and writes the release's notes.
 
-Used by .github/workflows/release.yml:  python3 .github/scripts/release_notes.py <tag> <owner/repo> <notes file>
-(the tag is v<version>, whether the release was started from the Run workflow button or by pushing a tag)
+Used by both release workflows (.gitea/workflows/release.yml and .github/workflows/release.yml):
+    python3 scripts/release_notes.py <tag> <owner/repo on GitHub> <notes file>
+(the tag is v<version>, whether the release was started from the Run workflow button or by pushing a tag).
+The notes always point at the public copy on GitHub, also in a release made on Gitea.
 
 1. The tag must name the version in package.json and py_modules/romm_deck/__init__.py (a leading "v" and
    letter case are ignored, so v0.5.0-Beta matches 0.5.0-beta). A mismatch fails the release, so a zip is
@@ -11,15 +13,16 @@ Used by .github/workflows/release.yml:  python3 .github/scripts/release_notes.py
    "Parsing zip file"), then that version's section of CHANGELOG.md. Links in the changelog are relative to
    the repository; they're made absolute (at the tag) so they work on the release page.
 
-Prints "prerelease=true" or "prerelease=false" for the workflow: versions with a suffix (0.5.0-beta) are
-published as pre-releases. Exits non-zero, with the reason, when the release must not go ahead.
+Prints, for the workflow: "prerelease=true" or "prerelease=false" (versions with a suffix, like 0.5.0-beta,
+are published as pre-releases), and "title=..." (v0.5.0-beta -> "V0.5.0 Beta", v1.0.2 -> "V1.0.2").
+Exits non-zero, with the reason, when the release must not go ahead.
 """
 import json
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def plugin_versions():
@@ -59,8 +62,15 @@ def absolute_links(text, repo, tag):
     return re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", fix, text)
 
 
+def release_title(version):
+    """The release's name: 0.5.0-beta -> "V0.5.0 Beta", 1.0.2 -> "V1.0.2"."""
+    number, _, suffix = version.partition("-")
+    return f"V{number} {suffix.capitalize()}" if suffix else f"V{number}"
+
+
 def main():
-    """Check the tag, write the notes file, and tell the workflow whether it's a pre-release."""
+    """Check the tag, write the notes file, and tell the workflow the release's title and whether it's a
+    pre-release."""
     tag, repo, notes_file = sys.argv[1], sys.argv[2], Path(sys.argv[3])
     version = tag[1:] if tag[:1] in ("v", "V") else tag
     package, backend = plugin_versions()
@@ -84,6 +94,7 @@ def main():
     notes = install + "## What's in it\n\n" + section + "\n"
     notes_file.write_text(absolute_links(notes, repo, tag))
     print(f"prerelease={'true' if '-' in package else 'false'}")
+    print(f"title={release_title(package)}")
 
 
 if __name__ == "__main__":

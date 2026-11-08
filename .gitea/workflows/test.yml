@@ -1,0 +1,61 @@
+# Runs every test on each push and pull request, on your own Gitea runner.
+#
+# It uses no actions: actions/checkout, setup-python and the like are downloaded from GitHub, so a GitHub outage
+# would stop every run. Instead each job runs in a plain image from Docker Hub that already has what it needs,
+# and gets the code from Gitea with git.
+#
+# Gitea only reads .gitea/workflows when it exists, so GitHub's workflows in .github/ never run here.
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    # Decky runs the backend on its own bundled Python 3.10, so that's the version the tests prove it works on
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10-bookworm
+    steps:
+      - name: Get the code
+        env:
+          TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          git init -q .
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          repo="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          # the exact commit that started the run; its branch or pull request as a fallback
+          git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_SHA" ||
+            git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_REF"
+          git checkout -q FETCH_HEAD
+          git log -1 --format='Testing %h %s'
+
+      - name: Backend tests
+        run: python3 tests/test_plugin.py && python3 tests/test_motion.py && python3 tests/test_release.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    container:
+      image: node:22-bookworm
+    steps:
+      - name: Get the code
+        env:
+          TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          git init -q .
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          repo="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_SHA" ||
+            git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_REF"
+          git checkout -q FETCH_HEAD
+
+      - name: Install the build tool (esbuild, from npm)
+        run: npm install --no-audit --no-fund
+
+      - name: Frontend tests
+        run: node tests/test_cards.mjs && node tests/test_current.mjs
+
+      - name: Build romm-deck.zip, and check Decky can install it
+        run: npm run package

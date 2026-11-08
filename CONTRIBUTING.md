@@ -34,7 +34,9 @@ bin/                     the game launcher every card runs, and the motion serve
 assets/brand/            the plugin's icon (icon.svg, and the PNGs exported from it)
 docs/                    the documentation pages (the README is the front page)
 tests/                   the tests, a fake RomM server and emulator config fixtures
-.github/                 the bug-report form and the release workflow
+scripts/                 release helpers both CI systems use: version check and notes, zip check, Gitea publish
+.gitea/                  the test and release workflows for the Gitea runner (the main copy)
+.github/                 the bug-report form and GitHub's release workflow (the public copy)
 ```
 
 [ARCHITECTURE.md](ARCHITECTURE.md#repository-layout) describes every file.
@@ -57,8 +59,13 @@ You need Node.js and Python 3.10 or newer.
   fake home folder with a fake EmuDeck install and fake emulators. It downloads, launches, syncs, removes and
   restores, and checks the files on disk at each step.
 - `tests/test_motion.py`: the motion sensor, calibration and the motion server.
+- `tests/test_release.py`: the release scripts: the version check and notes, the Decky install check, and
+  publishing on Gitea against a fake Gitea server.
 - `tests/test_cards.mjs`, `tests/test_current.mjs`: the frontend's Steam card handling, against a stand-in for
   Steam.
+
+On Gitea, every push runs the same suites (`.gitea/workflows/test.yml`): the backend on Python 3.10, the frontend
+and the zip on Node 22.
 
 The tests can't prove the plugin works inside real Steam and Decky, so try a change on a handheld too.
 See [tests/README.md](tests/README.md).
@@ -103,16 +110,27 @@ repository as a whole. One logical change per commit.
    this). The project is in beta (`0.x`); version 1.0 is the maintainer's decision only.
 2. Add the release to [CHANGELOG.md](CHANGELOG.md), under a heading `## X.Y.Z-beta (date)`.
 3. Run `npm test`, and `python3.10 tests/test_plugin.py`.
-4. Commit and push, then publish with the **Release** workflow (`.github/workflows/release.yml`), either way:
-   - **Actions → Release → Run workflow**, and enter the version without the `v` (for example `0.5.1-beta`). It
-     creates the tag `v0.5.1-beta` on the branch you run it from.
-   - or push a version tag: `git tag v0.5.1-beta && git push origin v0.5.1-beta`.
+4. Commit and push to Gitea, then publish with Gitea's **Release** workflow (`.gitea/workflows/release.yml`),
+   either way:
+   - **Actions → Release → Run workflow**, and enter the version without the `v` (for example `0.5.2`). It
+     creates the tag `v0.5.2` on the commit it releases.
+   - or push a version tag: `git tag v0.5.2 && git push origin v0.5.2`.
 
-   The workflow checks the version matches `package.json`, the backend and `CHANGELOG.md`, runs every test on
-   Python 3.10, builds `romm-deck.zip` and checks Decky can install it (`.github/scripts/check_package.py`, the
-   same rules Decky's installer applies), and publishes the release with the zip and that version's changelog
-   section as its notes. A version with a suffix (`-beta`) is published as a pre-release. If any check fails,
-   nothing is published. A release started by hand on GitHub gets the zip and notes added to it.
+   The workflow checks the version matches `package.json`, the backend and `CHANGELOG.md`, runs every test (the
+   backend on Python 3.10), builds `romm-deck.zip` and checks Decky can install it (`scripts/check_package.py`,
+   the same rules Decky's installer applies), and publishes the release on Gitea with the zip and that version's
+   changelog section as its notes (`scripts/publish_gitea_release.py`). A version with a suffix (`-beta`) is
+   published as a pre-release. If any check fails, nothing is published. Running it again for the same version
+   updates the release and replaces its zip.
+
+5. Gitea's push mirror then sends the commits and the new tag to GitHub, where the tag starts GitHub's own
+   **Release** workflow (`.github/workflows/release.yml`), which runs the same checks and publishes the same
+   release there. That's the copy people install from, so the notes always link to GitHub. If GitHub is down,
+   the mirror catches up later; the Gitea release is already done.
+
+The Gitea workflows use no actions (`actions/checkout` and the like download from GitHub): each job runs in a
+plain image from Docker Hub (`python:3.10-bookworm`, `node:22-bookworm`) and fetches the code from Gitea with git,
+so testing and releasing keep working when GitHub can't be reached.
 
 ## Reporting bugs
 

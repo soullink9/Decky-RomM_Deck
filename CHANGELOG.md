@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Repository
+
+- Gitea is the main copy: its runner tests every push and publishes releases
+  (`.gitea/workflows/`), with nothing downloaded from GitHub, so it keeps working when GitHub can't be reached.
+  Gitea push-mirrors to GitHub, and a version tag arriving there publishes the same release on GitHub.
+- The release helpers moved to `scripts/` (used by both), and `package.sh` zips with Python, so a runner needs
+  nothing beyond Python and Node.
+
 ## 0.5.1 (2026-11-08)
 
 ### Install

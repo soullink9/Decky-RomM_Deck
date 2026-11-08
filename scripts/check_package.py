@@ -1,7 +1,7 @@
 """Checks romm-deck.zip the way Decky Loader reads it when installing, so a zip that Decky would stop on never
 gets published.
 
-Used by package.sh (so every `npm run package` checks its zip):  python3 .github/scripts/check_package.py romm-deck.zip
+Used by package.sh (so every `npm run package` checks its zip):  python3 scripts/check_package.py romm-deck.zip
 
 Decky's "Install plugin from URL" and "Install plugin from ZIP" (decky_loader/browser.py, _install) open the zip,
 look for exactly one plugin.json one folder deep (<folder>/plugin.json), take the plugin's name from it, unpack
@@ -21,7 +21,7 @@ import sys
 from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = ("plugin.json", "main.py", "dist/index.js", "package.json")  # what Decky needs to load the plugin
 
 

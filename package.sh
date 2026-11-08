@@ -7,6 +7,7 @@ rm -rf build romm-deck.zip
 mkdir -p build/romm-deck
 cp -r plugin.json package.json main.py LICENSE README.md dist bin py_modules build/romm-deck/
 find build -name '__pycache__' -prune -exec rm -rf {} +
-(cd build && zip -qr ../romm-deck.zip romm-deck)
-python3 .github/scripts/check_package.py romm-deck.zip
+# Python's own zip tool, so the build works on any runner with Python (no `zip` to install)
+(cd build && python3 -m zipfile -c ../romm-deck.zip romm-deck)
+python3 scripts/check_package.py romm-deck.zip
 echo "made romm-deck.zip"

@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "package": "node build.mjs && sh package.sh",
-    "test": "python3 tests/test_plugin.py && python3 tests/test_motion.py && node tests/test_cards.mjs && node tests/test_current.mjs"
+    "test": "python3 tests/test_plugin.py && python3 tests/test_motion.py && python3 tests/test_release.py && node tests/test_cards.mjs && node tests/test_current.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.0"
