@@ -17,7 +17,7 @@ A [Decky Loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin that 
 [EmuDeck](https://www.emudeck.com/). Everything is done from the Quick Access menu: no terminal and no
 commands.
 
-**Beta (0.5.1).** Built and tested on a ROG Xbox Ally X with Bazzite, EmuDeck and RomM 5.4.1.
+**Beta (0.5.2).** Built and tested on a ROG Xbox Ally X with Bazzite, EmuDeck and RomM 5.4.1.
 
 - **Download games** from RomM into the right `Emulation/roms` folder, with a Steam card, cover art and
   the same Steam collection Steam ROM Manager uses. Games already on the PC are recognised.
