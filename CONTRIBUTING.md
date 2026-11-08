@@ -131,8 +131,9 @@ repository as a whole. One logical change per commit.
 The Gitea workflows use no actions (`actions/checkout` and the like download from GitHub): each job runs in a
 plain image from Docker Hub (`python:3.10-bookworm`, `node:22-bookworm`) and fetches the code from Gitea with git,
 so testing and releasing keep working when GitHub can't be reached. When the runner's jobs can't reach Gitea at its
-public address (a runner on the same Docker network as Gitea, say), set an Actions variable `GITEA_INTERNAL_URL`
+public address (a runner on the same Docker network as Gitea, say), set an Actions variable `LOCAL_GITEA_URL`
 to the address they can reach (`http://gitea-server:3000`); both workflows and the publish script use it.
+(Gitea refuses variable names starting with `GITEA_` or `GITHUB_`, hence `LOCAL_GITEA_URL` and `PUBLIC_GITEA_URL`.)
 
 ## A Decky store on Gitea
 
@@ -144,7 +145,7 @@ General → Plugin Store → **Custom**, and the store address below.
 - `.gitea/workflows/store.yml` refreshes the official listing every six hours, or from Actions → Decky store →
   Run workflow. If the official store can't be reached, the copy from last time is kept. Official plugins still
   download from the official store; only RomM Deck's come from Gitea.
-- Download and icon links are written from the Actions variable `GITEA_PUBLIC_URL` (the address the handheld
+- Download and icon links are written from the Actions variable `PUBLIC_GITEA_URL` (the address the handheld
   uses, for example `https://gitea.example.com`), or Gitea's own address (its ROOT_URL) when it isn't set. Set it
   once on your user (Settings → Actions → Variables). If Gitea moves, change the variable and run the Decky store
   workflow: every release's link is rewritten, since only versions and hashes are stored (`own.json`).
@@ -177,7 +178,7 @@ Decky has one store at a time, which is why the official listing is merged in: w
 lists and updates every official plugin. Searching works as usual; the sort options don't change the order (a file
 can't sort itself), which is RomM Deck first, then the official store's own order.
 
-The Traefik rule names Gitea's host too: if Gitea moves, change it there as well as in `GITEA_PUBLIC_URL`.
+The Traefik rule names Gitea's host too: if Gitea moves, change it there as well as in `PUBLIC_GITEA_URL`.
 
 ## Reporting bugs
 

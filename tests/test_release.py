@@ -198,9 +198,9 @@ check(result.returncode == 0 and len(FakeGitea.releases) == 1 and release["name"
 
 result = run_publish("V0.5.2", {"RELEASE_TOKEN": "wrong"})
 check(result.returncode != 0 and "401" in result.stderr, f"a token Gitea refuses: stops with Gitea's answer ({result.stderr.strip()[:80]})")
-result = run_publish("V0.5.2 inside", {"GITHUB_SERVER_URL": "https://gitea.example.invalid", "GITEA_INTERNAL_URL": gitea_url})
+result = run_publish("V0.5.2 inside", {"GITHUB_SERVER_URL": "https://gitea.example.invalid", "LOCAL_GITEA_URL": gitea_url})
 check(result.returncode == 0 and release["name"] == "V0.5.2 inside",
-      "public address unreachable from the runner: GITEA_INTERNAL_URL is used instead")
+      "public address unreachable from the runner: LOCAL_GITEA_URL is used instead")
 result = run_publish("V0.5.2", {"RELEASE_TOKEN": ""})
 check(result.returncode != 0 and "RELEASE_TOKEN" in result.stderr, "no token: stops and says which setting is missing")
 server.shutdown()

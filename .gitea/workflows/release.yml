@@ -30,7 +30,7 @@ env:
   STORE_AUTHOR_EMAIL: 344372660+soullink9@users.noreply.github.com
   # Gitea's address as the job containers can reach it, if that isn't its public address (ROOT_URL): for a runner
   # next to Gitea, e.g. http://gitea-server:3000. Set it once as an Actions variable on your user or organisation.
-  GITEA_INTERNAL_URL: ${{ vars.GITEA_INTERNAL_URL }}
+  LOCAL_GITEA_URL: ${{ vars.LOCAL_GITEA_URL }}
 
 jobs:
   backend-tests:
@@ -45,7 +45,7 @@ jobs:
         run: |
           git init -q .
           auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
-          repo="${GITEA_INTERNAL_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
+          repo="${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
           git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_SHA" ||
             git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_REF"
           git checkout -q FETCH_HEAD
@@ -65,7 +65,7 @@ jobs:
         run: |
           git init -q .
           auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
-          repo="${GITEA_INTERNAL_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
+          repo="${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
           git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_SHA" ||
             git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_REF"
           git checkout -q FETCH_HEAD

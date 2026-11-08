@@ -6,8 +6,8 @@
 # Reads from the environment, as the workflows set it:
 #   TOKEN               a token that may push to the repository
 #   GITHUB_REPOSITORY   owner/repo, and GITHUB_SERVER_URL, Gitea's address (both set by Gitea's runner)
-#   GITEA_INTERNAL_URL  optional: Gitea's address as the runner reaches it (fetch and push go there)
-#   GITEA_PUBLIC_URL    optional: Gitea's address as the handheld reaches it, for the download links;
+#   LOCAL_GITEA_URL  optional: Gitea's address as the runner reaches it (fetch and push go there)
+#   PUBLIC_GITEA_URL    optional: Gitea's address as the handheld reaches it, for the download links;
 #                       Gitea's own address (its ROOT_URL) when not set
 #   STORE_AUTHOR_NAME, STORE_AUTHOR_EMAIL   who the store's commits are by
 #
@@ -16,8 +16,8 @@
 set -eu
 
 auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
-repo="${GITEA_INTERNAL_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
-public="${GITEA_PUBLIC_URL:-$GITHUB_SERVER_URL}"
+repo="${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
+public="${PUBLIC_GITEA_URL:-$GITHUB_SERVER_URL}"
 if [ $# -ge 2 ]; then
     message="chore(store): add $1"
 else
