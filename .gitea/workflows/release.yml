@@ -25,6 +25,9 @@ on:
 
 env:
   PUBLIC_REPOSITORY: soullink9/Decky-RomM_Deck
+  # who the Decky store's commits are by (the store branch): the repository's owner
+  STORE_AUTHOR_NAME: Soullink
+  STORE_AUTHOR_EMAIL: 344372660+soullink9@users.noreply.github.com
   # Gitea's address as the job containers can reach it, if that isn't its public address (ROOT_URL): for a runner
   # next to Gitea, e.g. http://gitea-server:3000. Set it once as an Actions variable on your user or organisation.
   GITEA_INTERNAL_URL: ${{ vars.GITEA_INTERNAL_URL }}
@@ -104,3 +107,25 @@ jobs:
           TITLE: ${{ steps.notes.outputs.title }}
           PRERELEASE: ${{ steps.notes.outputs.prerelease }}
         run: python3 scripts/publish_gitea_release.py "$TAG" "$COMMIT" "$TITLE" notes.md "$PRERELEASE" romm-deck.zip
+
+      # The Decky store: the `store` branch holds plugins.json and plugins/versions.json (scripts/decky_store.py),
+      # which a Decky with this Gitea as its custom store reads. Addresses in it are Gitea's public one, the one
+      # the handheld uses. Commits there are made as the repository's owner, like every other commit.
+      - name: Add the release to the Decky store (store branch)
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITEA_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          repo="${GITEA_INTERNAL_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
+          public="${GITHUB_SERVER_URL%/}/$GITHUB_REPOSITORY"
+          git init -q store
+          # the store so far (none yet before the first release)
+          git -C store -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" store &&
+            git -C store checkout -q FETCH_HEAD || echo "No store branch yet: starting one"
+          python3 scripts/decky_store.py store "${TAG#[vV]}" romm-deck.zip \
+            "$public/releases/download/$TAG/romm-deck.zip" "$public/raw/tag/$TAG/assets/brand/icon@2x.png"
+          git -C store add -A
+          git -C store -c user.name="$STORE_AUTHOR_NAME" -c user.email="$STORE_AUTHOR_EMAIL" \
+            commit -q -m "chore(store): add RomM Deck $TAG"
+          git -C store -c http.extraHeader="Authorization: Basic $auth" push -q "$repo" HEAD:refs/heads/store

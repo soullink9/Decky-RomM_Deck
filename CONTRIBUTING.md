@@ -134,6 +134,36 @@ so testing and releasing keep working when GitHub can't be reached. When the run
 public address (a runner on the same Docker network as Gitea, say), set an Actions variable `GITEA_INTERNAL_URL`
 to the address they can reach (`http://gitea-server:3000`); both workflows and the publish script use it.
 
+## A Decky store on Gitea
+
+Each release made on Gitea also goes into the repository's `store` branch (`scripts/decky_store.py`):
+`plugins.json`, the plugin list with every version's zip address and SHA-256, and `plugins/versions.json`, what
+Decky 3.3.1 and newer use to check for updates. Decky can use it as its custom store: Decky settings → General →
+Plugin Store → **Custom**, and the store address below.
+
+Decky asks for `<store address>` and `<store address>/versions`. A plain file host can't answer both (one would
+be a folder of the other), so the web server in front of Gitea maps them to the two files. With Traefik v3, add
+to Gitea's container labels (change the host, owner and repository to yours; `$$` is how a compose file writes `$`):
+
+```yaml
+      - "traefik.http.routers.decky-store.rule=Host(`gitea.example.com`) && PathRegexp(`^/decky-store/plugins(/versions)?$$`)"
+      - "traefik.http.routers.decky-store.entrypoints=https"
+      - "traefik.http.routers.decky-store.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.decky-store.service=gitea"
+      - "traefik.http.routers.decky-store.middlewares=decky-store-files,decky-store-cors"
+      - "traefik.http.middlewares.decky-store-files.replacepathregex.regex=^/decky-store/plugins(/versions)?$$"
+      - "traefik.http.middlewares.decky-store-files.replacepathregex.replacement=/soullink9/decky-romm_deck/raw/branch/store/plugins$${1}.json"
+      - "traefik.http.middlewares.decky-store-cors.headers.accesscontrolalloworiginlist=*"
+      - "traefik.http.middlewares.decky-store-cors.headers.accesscontrolallowmethods=GET,OPTIONS"
+      - "traefik.http.middlewares.decky-store-cors.headers.accesscontrolallowheaders=X-Decky-Version"
+```
+
+The store address is then `https://gitea.example.com/decky-store/plugins`. Decky reads the store from Steam's
+interface, which needs the CORS headers; downloads come straight from the Gitea release. The repository has to be
+readable without signing in.
+
+Decky has one store at a time: with the custom store chosen, it lists and updates only what's in it.
+
 ## Reporting bugs
 
 [Open an issue](https://github.com/soullink9/Decky-RomM_Deck/issues/new/choose) and fill in the form. Please

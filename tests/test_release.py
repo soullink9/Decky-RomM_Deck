@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-import check_package, publish_gitea_release as publish, release_notes
+import check_package, decky_store, publish_gitea_release as publish, release_notes
 
 fails = 0
 def check(ok, msg):
@@ -52,6 +52,36 @@ check(check_package.problems_in(make_zip("flat.zip", flat)) != [], "files not in
 check(check_package.problems_in(tmp / "page.zip") != [], "a web page saved as .zip: refused")
 check(any("rebuild" in p for p in check_package.problems_in(make_zip("old.zip", {**good, "romm-deck/package.json": '{"version": "0.0.1"}'}))),
       "a zip of another version: refused")
+
+# --- decky_store.py: the files a Decky custom store serves ----------------------------------------------------
+store = tmp / "store"
+plugin = json.loads((ROOT / "plugin.json").read_text())
+first = make_zip("first.zip", {**good, "romm-deck/main.py": "first"})
+decky_store.add_release(store, "0.5.1", first, "https://gitea.example/r/releases/download/v0.5.1/romm-deck.zip", "https://gitea.example/icon.png")
+listing = json.loads((store / "plugins.json").read_text())
+entry = listing[0] if listing else {}
+import hashlib
+check(len(listing) == 1 and entry["name"] == plugin["name"] and entry["author"] == plugin["author"]
+      and entry["tags"] == plugin["publish"]["tags"] and entry["image_url"] == "https://gitea.example/icon.png"
+      and entry["versions"][0]["hash"] == hashlib.sha256(first.read_bytes()).hexdigest()
+      and entry["versions"][0]["artifact"].endswith("/v0.5.1/romm-deck.zip"),
+      "a new store: the plugin listed under plugin.json's name, with the zip's SHA-256 and download address")
+second = make_zip("second.zip", {**good, "romm-deck/main.py": "second"})
+decky_store.add_release(store, "0.5.2", second, "https://gitea.example/r/releases/download/v0.5.2/romm-deck.zip", "https://gitea.example/icon.png")
+entry = json.loads((store / "plugins.json").read_text())[0]
+versions = json.loads((store / "plugins/versions.json").read_text())
+check([v["name"] for v in entry["versions"]] == ["0.5.2", "0.5.1"], "the next release goes on top; the older one stays installable")
+check(versions == {plugin["name"]: ["0.5.2", hashlib.sha256(second.read_bytes()).hexdigest(), entry["versions"][0]["artifact"]]},
+      "plugins/versions.json (Decky 3.3.1+ update checks): the newest version, hash and address")
+decky_store.add_release(store, "0.5.2", first, "https://gitea.example/again.zip", "https://gitea.example/icon.png")
+entry = json.loads((store / "plugins.json").read_text())[0]
+check([v["name"] for v in entry["versions"]] == ["0.5.2", "0.5.1"] and entry["versions"][0]["artifact"] == "https://gitea.example/again.zip",
+      "releasing a version again replaces its entry instead of listing it twice")
+(store / "plugins.json").write_text(json.dumps([{"id": 7, "name": "Another Plugin", "versions": [{"name": "1.0.0", "hash": "x", "artifact": "y"}]}]))
+decky_store.add_release(store, "0.5.2", second, "https://gitea.example/z.zip", "https://gitea.example/icon.png")
+listing = json.loads((store / "plugins.json").read_text())
+check(sorted(p["name"] for p in listing) == sorted(["Another Plugin", plugin["name"]]) and len({p["id"] for p in listing}) == 2,
+      "other plugins in the same store are kept, each with its own id")
 
 # --- publish_gitea_release.py against a fake Gitea ------------------------------------------------------------
 class FakeGitea(BaseHTTPRequestHandler):

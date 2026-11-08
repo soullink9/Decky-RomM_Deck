@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Controller presets
+
+- "Use my real Wii Remotes" now checks the Dolphin that actually started, about half a minute into the game,
+  and says what it found in a second popup and on the game page: whether Dolphin got the real Wii Remote
+  setting, whether it has the Wii Remote sensor open, and whether another program (Steam, say) has it open too.
+  The details go into the launch log.
+- Turning a preset on or off while a game runs now says it takes effect from the next launch: a running
+  emulator has already read its settings.
+
+### Install
+
+- A Decky store on Gitea: each release made on Gitea is added to the repository's `store` branch, which Decky
+  can use as a custom store (Decky settings → Plugin Store → Custom), for installs and update notifications.
+  [CONTRIBUTING](CONTRIBUTING.md#a-decky-store-on-gitea) has the web server rule it needs.
+
 ### Repository
 
 - Gitea is the main copy: its runner tests every push and publishes releases
