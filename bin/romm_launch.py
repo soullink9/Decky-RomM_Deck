@@ -51,11 +51,12 @@ def pull_saves(rom_id, game):
         config.notify("Saves not synced", f"{game['name']}: {e}")
 
 
-def check_preset(game, emulator_pid):
+def check_preset(game, emulator_pid, log_start):
     """In the background while the game runs: did the controller preset reach the emulator? (A check can
-    only ever report; it never changes anything or stops the game.)"""
+    only ever report; it never changes anything or stops the game.) The emulator writes into LOG_FILE
+    from log_start on."""
     try:
-        presets.check_running(game, emulator_pid)
+        presets.check_running(game, emulator_pid, LOG_FILE, log_start)
     except Exception:
         config.log.exception("Controller preset check failed")
 
@@ -96,6 +97,7 @@ def main():
     signal.signal(signal.SIGHUP, signal.SIG_IGN)
     # the emulator's own messages go into launch.log too, so a game that won't start can be explained
     with open(LOG_FILE, "a") as out:
+        log_start = out.tell()  # where this game's part of the log starts (the emulator writes from here)
         proc = subprocess.Popen(cmd, env=env, cwd=cwd if cwd and Path(cwd).is_dir() else None,
                                 stdout=out, stderr=subprocess.STDOUT,
                                 preexec_fn=procs.default_close_signals)
@@ -103,7 +105,7 @@ def main():
         if preset_args:
             # the preset gave the emulator settings on its command line: check, while the game runs,
             # that they reached the emulator itself (in the background, so the game is never held up)
-            threading.Thread(target=check_preset, args=(game, proc.pid), daemon=True).start()
+            threading.Thread(target=check_preset, args=(game, proc.pid, log_start), daemon=True).start()
         code = proc.wait()
     config.log.info("%s closed (exit code %s)", game["name"], code)
     session.finish(timeout=10)

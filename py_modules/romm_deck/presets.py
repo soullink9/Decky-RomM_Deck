@@ -122,11 +122,17 @@ def _dolphin_real_wiimotes_args():
     EmuDeck's launcher rewrites every [WiimoteN] Source in WiimoteNew.ini to "emulated" (its controller
     AutoMap) just before it starts Dolphin, which undid the same change made in the file. Settings given
     with -C sit above the files for that run only and Dolphin never saves them, so there's nothing to
-    put back afterwards. (Only a game's own Dolphin settings, GameSettings/<id>.ini, rank higher.)"""
+    put back afterwards. (Only a game's own Dolphin settings, GameSettings/<id>.ini, rank higher.)
+
+    The last three switch on Dolphin's own Wii Remote messages (which remotes it found, and why it couldn't
+    open one), written to its console, which is the game's launch log. _dolphin_check reads them back. They
+    last for this run only too: Dolphin keeps log settings given this way out of Logger.ini."""
     args = []
     for n in range(1, 5):
         args += ["-C", f"Wiimote.Wiimote{n}.Source={REAL_WIIMOTE}"]
     args += ["-C", "Dolphin.Core.WiimoteContinuousScanning=True"]
+    args += ["-C", "Logger.Logs.Wiimote=True", "-C", "Logger.Options.WriteToConsole=True",
+             "-C", "Logger.Options.Verbosity=3"]  # 3: notices, errors and warnings
     return args
 
 
@@ -180,7 +186,36 @@ def _wii_remotes_running():
 # work if they reach Dolphin itself, so this looks at Dolphin's own command line rather than trusting ours.
 DOLPHIN_PROGRAMS = ("dolphin-emu", "dolphin-emu-nogui")
 CHECK_FIND_FOR = 45.0  # seconds to wait for Dolphin to appear (EmuDeck's launcher updates itself first)
-CHECK_SETTLE = 10.0    # then seconds to let Dolphin look for remotes before seeing who has the sensor open
+CHECK_SETTLE = 20.0    # then seconds to let Dolphin look for remotes before seeing who has the sensor open
+# Dolphin's own messages about real Wii Remotes (see _dolphin_real_wiimotes_args), as it writes them, and what
+# each means for the player; the first that applies is reported.
+DOLPHIN_SAYS = [
+    ("has the Linux 'wiimote' driver attached",
+     "The remote is paired with the system's Bluetooth, which keeps it from Dolphin: forget it in Bluetooth settings"),
+    ("Do you have permission to access the device",
+     "Dolphin isn't allowed to open the Wii Remote sensor"),
+    ("Failed to connect real wiimote", "Dolphin found a remote but couldn't connect to it"),
+    ("Found ", "Dolphin found a Wii Remote"),
+]
+
+
+def _dolphin_says(log_file, start):
+    """Dolphin's Wii Remote messages in the game's log since it started (Dolphin writes "...[Wiimote]: text")."""
+    try:
+        with open(log_file, "rb") as log:
+            log.seek(start)
+            text = log.read().decode(errors="replace")
+    except OSError:
+        return []
+    return [line.split("[Wiimote]:", 1)[1].strip() for line in text.splitlines() if "[Wiimote]:" in line]
+
+
+def _explain(messages):
+    """What Dolphin's messages mean, in a few words (the first that applies), or what their absence means."""
+    for marker, meaning in DOLPHIN_SAYS:
+        if any(marker in message for message in messages):
+            return meaning
+    return "Dolphin hasn't seen a Wii Remote yet"
 
 
 def _find_dolphin(root_pid):
@@ -198,9 +233,23 @@ def _find_dolphin(root_pid):
     return None, []
 
 
-def _dolphin_check(root_pid):
+def _dolphin_check(root_pid, log_file=None, log_start=0):
     """(True, what's going on) once Dolphin is running with real Wii Remotes, (False, why not) if it isn't,
-    or None if Dolphin couldn't be found to look at. Everything it sees goes into the log too."""
+    or None if Dolphin couldn't be found to look at. Everything it sees goes into the log too. With the game's
+    log (and where this game's part of it starts), Dolphin's own Wii Remote messages are added."""
+    result = _dolphin_findings(root_pid)
+    if result is None or log_file is None:
+        return result
+    ok, text = result
+    if not ok:
+        return result  # Dolphin wasn't told to use real remotes, so it has nothing to say about them
+    messages = _dolphin_says(log_file, log_start)
+    config.log.info("Wii Remote check: Dolphin said %s", messages or "nothing about Wii Remotes")
+    return ok, f"{text}. {_explain(messages)}"
+
+
+def _dolphin_findings(root_pid):
+    """What the processes show: Dolphin's command line, and who has the Wii Remote sensor open."""
     pid, args = _find_dolphin(root_pid)
     if pid is None:
         config.log.warning("Wii Remote check: no Dolphin found under process %s", root_pid)
@@ -227,22 +276,26 @@ def _dolphin_check(root_pid):
                       f"{verb} the Wii Remote sensor open, which can stop remotes connecting")
     if dolphin_has_it:
         return True, "Dolphin is using real Wii Remotes and has the USB sensor open"
+    if any(not openable for _, openable in slots):
+        return True, ("Dolphin is using real Wii Remotes, but the Wii Remote sensor's device file can't be "
+                      "opened (it's missing or not allowed), so remotes on it can't connect")
     if slots:
         return True, ("Dolphin is using real Wii Remotes; it hasn't opened the USB sensor yet "
                       "(press 1+2 on a remote, or the sensor's sync button)")
     return True, "Dolphin is using real Wii Remotes (press 1+2 on each; a DolphinBar has to be in mode 4)"
 
 
-def check_running(game, emulator_pid):
+def check_running(game, emulator_pid, log_file=None, log_start=0):
     """While the game runs: let the turned-on preset check it really took effect, then say so in a popup
-    and on the game page. Does nothing for presets without a check."""
+    and on the game page. Does nothing for presets without a check. log_file is the game's launch log, which
+    holds the emulator's own messages from log_start on."""
     platform = game.get("system")
     if not enabled(platform):
         return
     preset = _turned_on_preset(platform)
     if not preset or "check" not in preset:
         return
-    result = preset["check"](emulator_pid)
+    result = preset["check"](emulator_pid, log_file, log_start)
     if result is None:
         return
     ok, text = result

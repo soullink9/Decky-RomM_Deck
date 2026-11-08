@@ -1022,7 +1022,8 @@ async def test():
     hid_device("hidraw0", "0003:0000045E:0000028E")  # a USB gamepad
     hid_device("hidraw1", "0005:0000057E:00000306")  # a Wii Remote paired over Bluetooth: Dolphin finds those itself
     real = ["-C", "Wiimote.Wiimote1.Source=2", "-C", "Wiimote.Wiimote2.Source=2", "-C", "Wiimote.Wiimote3.Source=2",
-            "-C", "Wiimote.Wiimote4.Source=2", "-C", "Dolphin.Core.WiimoteContinuousScanning=True"]
+            "-C", "Wiimote.Wiimote4.Source=2", "-C", "Dolphin.Core.WiimoteContinuousScanning=True",
+            "-C", "Logger.Logs.Wiimote=True", "-C", "Logger.Options.WriteToConsole=True", "-C", "Logger.Options.Verbosity=3"]
     ok, text = PR.apply(wii, os.getpid())
     check(ok and PR.launch_args(wii) == real and dsu_reading()[0] == "no-motion",
           f"during a Wii game: Dolphin is told on its command line to use four real Wii Remotes and keep looking for them, no motion server ({text})")
@@ -1117,11 +1118,40 @@ async def test():
     quick = subprocess.Popen(["true"]); quick.wait()
     check(PR._dolphin_check(quick.pid) is None, "no Dolphin ever appeared: nothing claimed")
     PR.CHECK_FIND_FOR = 5.0
+    # Dolphin's own Wii Remote messages, written to the game's log, are read from where this game's part starts
+    game_log = FAKE / "launch.log"
+    game_log.write_text("12:00:00:000 Core/HW/WiimoteReal/IOhidapi.cpp:130 N[Wiimote]: Found Wii Remote at /dev/hidraw0\n")
+    log_start = game_log.stat().st_size  # (that line was an earlier game's)
+    for lines, meaning in [
+        ([], "Dolphin hasn't seen a Wii Remote yet"),
+        (["Found Wii Remote at /dev/hidraw2: Nintendo RVL-CNT-01 (057e:0306)"], "Dolphin found a Wii Remote"),
+        (['Could not connect to Wii Remote at "/dev/hidraw2". Do you have permission to access the device?'],
+         "Dolphin isn't allowed to open the Wii Remote sensor"),
+        (["Wii remote at /dev/hidraw5 has the Linux 'wiimote' driver attached.", "Found Wii Remote at /dev/hidraw5"],
+         "paired with the system's Bluetooth"),
+    ]:
+        game_log.write_text(game_log.read_text()[:log_start] + "".join(
+            f"12:00:01:000 Core/HW/WiimoteReal/x.cpp:1 E[Wiimote]: {line}\n" for line in lines) + "other output\n")
+        proc = fake_dolphin(real, hold=True)
+        try:
+            result = PR._dolphin_check(proc.pid, game_log, log_start)
+        finally:
+            stop_all(proc)
+        check(result and result[0] and meaning in result[1], f"Dolphin's own messages {lines[:1]}: {result}")
+    proc = fake_dolphin(["-b", "-e", "game.rvz"])
+    try:
+        result = PR._dolphin_check(proc.pid, game_log, log_start)
+    finally:
+        stop_all(proc)
+    check(result and not result[0] and "Dolphin" in result[1] and "found" not in result[1],
+          f"Dolphin without the setting: no Wii Remote messages expected, none reported ({result})")
+    game_log.write_text(game_log.read_text()[:log_start] + "x E[Wiimote]: Found Wii Remote at /dev/hidraw2\n")
     proc = fake_dolphin(real, hold=True)
-    PR.check_running(wii, proc.pid)
+    PR.check_running(wii, proc.pid, game_log, log_start)
     stop_all(proc)
     popup = json.loads(sorted((config.SETTINGS_DIR / "notify").glob("*.json"))[-1].read_text())
     check(popup["title"] == "Use my real Wii Remotes" and "has the USB sensor open" in popup["body"]
+          and "Dolphin found a Wii Remote" in popup["body"]
           and "has the USB sensor open" in config.load(PR.STATUS)["wii"],
           f"the result is a popup during the game and the game page's line: {popup}")
     await P.set_preset("wii", False)
