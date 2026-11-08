@@ -136,10 +136,21 @@ to the address they can reach (`http://gitea-server:3000`); both workflows and t
 
 ## A Decky store on Gitea
 
-Each release made on Gitea also goes into the repository's `store` branch (`scripts/decky_store.py`):
-`plugins.json`, the plugin list with every version's zip address and SHA-256, and `plugins/versions.json`, what
-Decky 3.3.1 and newer use to check for updates. Decky can use it as its custom store: Decky settings → General →
-Plugin Store → **Custom**, and the store address below.
+The repository's `store` branch is a Decky plugin store: every release of RomM Deck, plus the official Decky
+store's whole listing, so a Decky using it loses nothing. Decky can use it as its custom store: Decky settings →
+General → Plugin Store → **Custom**, and the store address below.
+
+- Each release made on Gitea adds itself (the last step of `.gitea/workflows/release.yml`).
+- `.gitea/workflows/store.yml` refreshes the official listing every six hours, or from Actions → Decky store →
+  Run workflow. If the official store can't be reached, the copy from last time is kept. Official plugins still
+  download from the official store; only RomM Deck's come from Gitea.
+- Download and icon links are written from the Actions variable `GITEA_PUBLIC_URL` (the address the handheld
+  uses, for example `https://gitea.example.com`), or Gitea's own address (its ROOT_URL) when it isn't set. Set it
+  once on your user (Settings → Actions → Variables). If Gitea moves, change the variable and run the Decky store
+  workflow: every release's link is rewritten, since only versions and hashes are stored (`own.json`).
+- `scripts/update_decky_store.sh` does the work for both workflows (`scripts/decky_store.py` builds the files):
+  `plugins.json`, the list with every version's SHA-256 (and, for ours, its address), and `plugins/versions.json`,
+  what Decky 3.3.1 and newer use for update checks.
 
 Decky asks for `<store address>` and `<store address>/versions`. A plain file host can't answer both (one would
 be a folder of the other), so the web server in front of Gitea maps them to the two files. With Traefik v3, add
@@ -162,7 +173,11 @@ The store address is then `https://gitea.example.com/decky-store/plugins`. Decky
 interface, which needs the CORS headers; downloads come straight from the Gitea release. The repository has to be
 readable without signing in.
 
-Decky has one store at a time: with the custom store chosen, it lists and updates only what's in it.
+Decky has one store at a time, which is why the official listing is merged in: with this store chosen, Decky still
+lists and updates every official plugin. Searching works as usual; the sort options don't change the order (a file
+can't sort itself), which is RomM Deck first, then the official store's own order.
+
+The Traefik rule names Gitea's host too: if Gitea moves, change it there as well as in `GITEA_PUBLIC_URL`.
 
 ## Reporting bugs
 

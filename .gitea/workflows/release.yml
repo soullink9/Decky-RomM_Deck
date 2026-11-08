@@ -108,24 +108,10 @@ jobs:
           PRERELEASE: ${{ steps.notes.outputs.prerelease }}
         run: python3 scripts/publish_gitea_release.py "$TAG" "$COMMIT" "$TITLE" notes.md "$PRERELEASE" romm-deck.zip
 
-      # The Decky store: the `store` branch holds plugins.json and plugins/versions.json (scripts/decky_store.py),
-      # which a Decky with this Gitea as its custom store reads. Addresses in it are Gitea's public one, the one
-      # the handheld uses. Commits there are made as the repository's owner, like every other commit.
+      # The Decky store on the `store` branch (scripts/decky_store.py): this release, plus the official store's
+      # listing, which a Decky with this Gitea as its custom store reads. store.yml refreshes it on a schedule.
       - name: Add the release to the Decky store (store branch)
         env:
           TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITEA_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
-          repo="${GITEA_INTERNAL_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
-          public="${GITHUB_SERVER_URL%/}/$GITHUB_REPOSITORY"
-          git init -q store
-          # the store so far (none yet before the first release)
-          git -C store -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" store &&
-            git -C store checkout -q FETCH_HEAD || echo "No store branch yet: starting one"
-          python3 scripts/decky_store.py store "${TAG#[vV]}" romm-deck.zip \
-            "$public/releases/download/$TAG/romm-deck.zip" "$public/raw/tag/$TAG/assets/brand/icon@2x.png"
-          git -C store add -A
-          git -C store -c user.name="$STORE_AUTHOR_NAME" -c user.email="$STORE_AUTHOR_EMAIL" \
-            commit -q -m "chore(store): add RomM Deck $TAG"
-          git -C store -c http.extraHeader="Authorization: Basic $auth" push -q "$repo" HEAD:refs/heads/store
+        run: sh scripts/update_decky_store.sh "$TAG" romm-deck.zip

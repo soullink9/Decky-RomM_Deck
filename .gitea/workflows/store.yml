@@ -1,0 +1,42 @@
+# Keeps the Decky store on the `store` branch up to date with the official Decky store's listing, so a Decky
+# using this Gitea as its custom store still lists and updates every official plugin. Each release adds itself
+# (release.yml); this refreshes the rest every six hours. It also rewrites every download link with Gitea's
+# current public address (GITEA_PUBLIC_URL), so a move to a new domain reaches the store within six hours, or
+# straight away from Actions → Decky store → Run workflow.
+#
+# Uses no actions, like the other workflows, so it runs when GitHub can't be reached. When the official store
+# can't be reached, the copy from last time is kept.
+name: Decky store
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+env:
+  GITEA_INTERNAL_URL: ${{ vars.GITEA_INTERNAL_URL }}
+  GITEA_PUBLIC_URL: ${{ vars.GITEA_PUBLIC_URL }}
+  STORE_AUTHOR_NAME: Soullink
+  STORE_AUTHOR_EMAIL: 344372660+soullink9@users.noreply.github.com
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.10-bookworm
+    steps:
+      - name: Get the code
+        env:
+          TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          git init -q .
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          repo="${GITEA_INTERNAL_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
+          git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_SHA" ||
+            git -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" "$GITHUB_REF"
+          git checkout -q FETCH_HEAD
+
+      - name: Refresh the Decky store (store branch)
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITEA_TOKEN }}
+        run: sh scripts/update_decky_store.sh

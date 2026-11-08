@@ -13,8 +13,10 @@
 
 ### Install
 
-- A Decky store on Gitea: each release made on Gitea is added to the repository's `store` branch, which Decky
-  can use as a custom store (Decky settings → Plugin Store → Custom), for installs and update notifications.
+- A Decky store on Gitea: the repository's `store` branch lists every RomM Deck release together with the official
+  Decky store's plugins (refreshed every six hours), so Decky can use it as its custom store (Decky settings →
+  Plugin Store → Custom) without losing any official plugin or update. Links follow the Actions variable
+  `GITEA_PUBLIC_URL`, so moving Gitea to a new domain only needs that changed.
   [CONTRIBUTING](CONTRIBUTING.md#a-decky-store-on-gitea) has the web server rule it needs.
 
 ### Repository

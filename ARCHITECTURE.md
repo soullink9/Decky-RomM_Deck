@@ -83,7 +83,9 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `.gitea/workflows/release.yml` | Publishes a release on Gitea (Run workflow button, or a pushed version tag); its tag then reaches GitHub through the push mirror |
 | `.github/workflows/release.yml` | Publishes the same release on GitHub when a version tag arrives there (or from its own Run workflow button) |
 | `scripts/release_notes.py` | Shared by both release workflows: checks the version, gives the release's title, writes the notes (with the zip's install-from-URL address on GitHub) from CHANGELOG.md |
-| `scripts/decky_store.py` | Adds each Gitea release to the Decky store files on the `store` branch (`plugins.json`, `plugins/versions.json`) |
+| `.gitea/workflows/store.yml` | Every six hours: refreshes the Decky store on the `store` branch with the official listing and current links |
+| `scripts/update_decky_store.sh` | Fetches the `store` branch, updates it (a release, or a refresh) and pushes it back, retrying if it moved meanwhile |
+| `scripts/decky_store.py` | Builds the Decky store files: RomM Deck's releases (`own.json`, links worked out from `GITEA_PUBLIC_URL`) merged with the official store's listing, into `plugins.json` and `plugins/versions.json` |
 | `scripts/publish_gitea_release.py` | Creates or updates the Gitea release and uploads the zip, through Gitea's API (standard library only) |
 | `scripts/check_package.py` | Checks `romm-deck.zip` the way Decky's installer reads it (one folder, `plugin.json` inside it, the files Decky loads), run by every `package.sh` |
 | `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky and checks the zip |
