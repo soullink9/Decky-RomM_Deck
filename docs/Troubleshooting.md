@@ -68,6 +68,19 @@ under the preset on the game page, say what Dolphin can see:
 
 If there's no "Controller preset on" popup when the game starts, the preset wasn't used for that launch.
 
+About half a minute into the game, a second popup says what RomM Deck found in the Dolphin that's running:
+
+- *Dolphin is using real Wii Remotes and has the USB sensor open*: everything is in place; press 1+2 on a remote.
+- *…hasn't opened the USB sensor yet*: Dolphin is set up but hasn't connected to the sensor; press 1+2 on a
+  remote or the sensor's sync button, and check the DolphinBar is in mode 4.
+- *…but steam also has the Wii Remote sensor open*: another program is using the sensor too, and can take the
+  remotes' signals before Dolphin does.
+- *Dolphin was started without the real Wii Remote setting*: the card started Dolphin some other way than
+  EmuDeck's Dolphin launcher, so the setting couldn't be passed on. Start the game from its RomM Deck card.
+
+Turning the preset on or off during a game takes effect the next time the game starts. The launch log (Decky's
+logs for RomM Deck) lists Dolphin's command line and which programs had each sensor slot open.
+
 **Installing from a URL stops at "Parsing zip file".**
 Decky got something that isn't the plugin's zip. Use the address in
 [Installation](Installation.md#installing-the-plugin), which ends in `/romm-deck.zip`; the address of a

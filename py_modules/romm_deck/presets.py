@@ -130,17 +130,17 @@ def _dolphin_real_wiimotes_args():
     return args
 
 
-def _usb_wii_remotes():
-    """The Wii Remote slots on USB: (how many Dolphin can open, how many it can't).
+def _usb_wii_remote_slots():
+    """The Wii Remote slots on USB, as [(their device file, whether Dolphin can open it)].
 
     A DolphinBar only shows up as Wii Remotes in mode 4; in modes 1-3 it's a mouse, keyboard or gamepad,
     and Dolphin then has no real remote to connect, so the game gets nothing from it. Remotes on Bluetooth
     don't appear here: Dolphin finds those itself."""
-    usable = blocked = 0
     try:
         entries = sorted(HIDRAW.iterdir())
     except OSError:
-        return 0, 0  # no raw HID devices at all
+        return []  # no raw HID devices at all
+    slots = []
     for entry in entries:
         ids = ""
         for line in _read(entry / "device" / "uevent").splitlines():
@@ -150,11 +150,16 @@ def _usb_wii_remotes():
         if bus != USB_BUS or device_ids not in WII_REMOTE_IDS:
             continue
         # Dolphin runs as this same user, so it can open the file exactly when this process can
-        if os.access(DEV / entry.name, os.R_OK | os.W_OK):
-            usable += 1
-        else:
-            blocked += 1
-    return usable, blocked
+        device = DEV / entry.name
+        slots.append((device, os.access(device, os.R_OK | os.W_OK)))
+    return slots
+
+
+def _usb_wii_remotes():
+    """The Wii Remote slots on USB: (how many Dolphin can open, how many it can't)."""
+    slots = _usb_wii_remote_slots()
+    usable = sum(1 for _, openable in slots if openable)
+    return usable, len(slots) - usable
 
 
 def _wii_remotes_running():
@@ -170,12 +175,87 @@ def _wii_remotes_running():
     return "using real Wii Remotes (press 1+2 on each to connect; a DolphinBar has to be in mode 4)"
 
 
+# While a Wii game runs (bin/romm_launch.py runs this in the background): did the Dolphin that actually
+# started get the setting, and who has the Wii Remote sensor open? Settings given on the command line only
+# work if they reach Dolphin itself, so this looks at Dolphin's own command line rather than trusting ours.
+DOLPHIN_PROGRAMS = ("dolphin-emu", "dolphin-emu-nogui")
+CHECK_FIND_FOR = 45.0  # seconds to wait for Dolphin to appear (EmuDeck's launcher updates itself first)
+CHECK_SETTLE = 10.0    # then seconds to let Dolphin look for remotes before seeing who has the sensor open
+
+
+def _find_dolphin(root_pid):
+    """Dolphin's process among those the game's command started: (pid, its command line), or (None, [])
+    if it didn't appear in time or the game closed first."""
+    deadline = time.monotonic() + CHECK_FIND_FOR
+    while time.monotonic() < deadline:
+        for pid in procs.descendants(root_pid):
+            args = procs.command_line(pid)
+            if args and Path(args[0]).name in DOLPHIN_PROGRAMS:
+                return pid, args
+        if procs.start_time(root_pid) is None:
+            return None, []
+        time.sleep(1)
+    return None, []
+
+
+def _dolphin_check(root_pid):
+    """(True, what's going on) once Dolphin is running with real Wii Remotes, (False, why not) if it isn't,
+    or None if Dolphin couldn't be found to look at. Everything it sees goes into the log too."""
+    pid, args = _find_dolphin(root_pid)
+    if pid is None:
+        config.log.warning("Wii Remote check: no Dolphin found under process %s", root_pid)
+        return None
+    config.log.info("Wii Remote check: Dolphin is process %s, started as %s", pid, args)
+    wanted = [a for a in _dolphin_real_wiimotes_args() if a != "-C"]
+    if any(setting not in args for setting in wanted):
+        return False, "Dolphin was started without the real Wii Remote setting, so it uses emulated remotes"
+    time.sleep(CHECK_SETTLE)
+    slots = _usb_wii_remote_slots()
+    dolphin = {pid, *procs.descendants(pid)}  # Dolphin, and anything it started itself
+    others, dolphin_has_it = set(), False
+    for device, _ in slots:
+        holders = procs.holding_open(device)
+        config.log.info("Wii Remote check: %s is open in %s", device, holders or "nothing")
+        for holder, holder_name in holders.items():
+            if holder in dolphin:
+                dolphin_has_it = True
+            else:
+                others.add(holder_name or f"process {holder}")
+    if others:
+        verb = "have" if len(others) > 1 else "has"
+        return True, (f"Dolphin is using real Wii Remotes, but {' and '.join(sorted(others))} also "
+                      f"{verb} the Wii Remote sensor open, which can stop remotes connecting")
+    if dolphin_has_it:
+        return True, "Dolphin is using real Wii Remotes and has the USB sensor open"
+    if slots:
+        return True, ("Dolphin is using real Wii Remotes; it hasn't opened the USB sensor yet "
+                      "(press 1+2 on a remote, or the sensor's sync button)")
+    return True, "Dolphin is using real Wii Remotes (press 1+2 on each; a DolphinBar has to be in mode 4)"
+
+
+def check_running(game, emulator_pid):
+    """While the game runs: let the turned-on preset check it really took effect, then say so in a popup
+    and on the game page. Does nothing for presets without a check."""
+    platform = game.get("system")
+    if not enabled(platform):
+        return
+    preset = _turned_on_preset(platform)
+    if not preset or "check" not in preset:
+        return
+    result = preset["check"](emulator_pid)
+    if result is None:
+        return
+    ok, text = result
+    config.notify(preset["label"] if ok else f"{preset['label']}: not working", text)
+    _report(platform, ok, text)
+
+
 # The presets on offer. DEVICES: only on that handheld (recognised by its firmware's name);
 # ANY_DEVICE: everywhere. Each preset: a label and description for the game page, whether it needs
 # the motion server, and how it changes the emulator for one game: plan() lists settings to change in its
 # files (put back after the game), args() lists arguments for the emulator's command line (gone when it
 # closes). Optionally running() says what's going on during the game (by default, that it's reading the
-# Ally's motion).
+# Ally's motion), and check(emulator_pid) looks at the running emulator to confirm the preset took effect.
 ALLY_MOTION = "Motion and tilt from the Ally's own sensor"
 DEVICES = {
     "rog-ally": {
@@ -197,7 +277,7 @@ ANY_DEVICE = {
             "about": "Dolphin uses real Wii Remotes for all four players instead of emulated ones; press 1+2 on "
                      "a remote to connect it. A DolphinBar has to be in mode 4. Only this game is told to use "
                      "them: your Dolphin settings aren't changed.",
-            "running": _wii_remotes_running},
+            "running": _wii_remotes_running, "check": _dolphin_check},
 }
 
 

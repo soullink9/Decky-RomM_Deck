@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 # Steam runs this with the system Python, outside Decky, so the plugin's modules are added by hand
@@ -48,6 +49,15 @@ def pull_saves(rom_id, game):
     except Exception as e:
         config.log.exception("Save pull failed for rom %s; continuing", rom_id)
         config.notify("Saves not synced", f"{game['name']}: {e}")
+
+
+def check_preset(game, emulator_pid):
+    """In the background while the game runs: did the controller preset reach the emulator? (A check can
+    only ever report; it never changes anything or stops the game.)"""
+    try:
+        presets.check_running(game, emulator_pid)
+    except Exception:
+        config.log.exception("Controller preset check failed")
 
 
 def main():
@@ -90,6 +100,10 @@ def main():
                                 stdout=out, stderr=subprocess.STDOUT,
                                 preexec_fn=procs.default_close_signals)
         session.start(rom_id, game, before, [os.getpid(), proc.pid])
+        if preset_args:
+            # the preset gave the emulator settings on its command line: check, while the game runs,
+            # that they reached the emulator itself (in the background, so the game is never held up)
+            threading.Thread(target=check_preset, args=(game, proc.pid), daemon=True).start()
         code = proc.wait()
     config.log.info("%s closed (exit code %s)", game["name"], code)
     session.finish(timeout=10)

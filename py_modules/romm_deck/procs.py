@@ -1,4 +1,4 @@
-"""Telling whether a process we started is still running, safely.
+"""Telling whether a process we started is still running, safely, and looking at what it runs.
 
 A process id alone isn't enough: after a reboot (or a long time), Linux hands the same number to
 an unrelated program. So a process is remembered as (pid, start time), the start time being the
@@ -63,3 +63,70 @@ def default_close_signals():
     """
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGHUP, signal.SIG_DFL)
+
+
+# ---------- looking at the emulator a game started (for checking a controller preset took) ----------
+
+def _parent(pid):
+    """The parent of process `pid`, or None if it's gone (field 4 of /proc/<pid>/stat)."""
+    try:
+        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[-1].split()
+        return int(fields[1])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def descendants(pid):
+    """Every process started, directly or not, by process `pid`. An emulator run through EmuDeck's
+    launcher and flatpak is a few levels down, but still in the tree, also inside flatpak's sandbox."""
+    parents = {}
+    for entry in Path("/proc").iterdir():
+        if entry.name.isdigit():
+            parent = _parent(int(entry.name))
+            if parent is not None:
+                parents.setdefault(parent, []).append(int(entry.name))
+    found, todo = [], [pid]
+    while todo:
+        children = parents.get(todo.pop(), [])
+        found += children
+        todo += children
+    return found
+
+
+def command_line(pid):
+    """The program and arguments process `pid` was started with ([] if it's gone or not ours to read)."""
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return []
+    return [part.decode(errors="replace") for part in raw.split(b"\0") if part]
+
+
+def name(pid):
+    """The process's short name (what `ps` shows), or "" if it's gone."""
+    try:
+        return Path(f"/proc/{pid}/comm").read_text().strip()
+    except OSError:
+        return ""
+
+
+def holding_open(path):
+    """The processes that have the file `path` open, as {pid: name}. Only this user's processes can be
+    looked at, so a system service holding it (one running as root) isn't listed."""
+    target = str(path)
+    holders = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            fds = list((entry / "fd").iterdir())
+        except OSError:
+            continue  # another user's process, or gone
+        for fd in fds:
+            try:
+                if os.readlink(fd) == target:
+                    holders[int(entry.name)] = name(int(entry.name))
+                    break
+            except OSError:
+                continue
+    return holders

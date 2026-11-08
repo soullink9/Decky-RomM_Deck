@@ -588,7 +588,9 @@ function GamePage({ view, go }: { view: GamePageView; go: (p: Page) => void }) {
                 ].filter(Boolean).join(" ")}
                 onChange={(on: boolean) => run("preset", async () => {
                   const r = await api.setPreset(game.preset!.platform, on);
-                  toast(game.platform, r.ok ? (on ? "Controller preset on" : "Controller preset off, all changes undone") : r.error || "Failed");
+                  // a running emulator has already read its settings, so a change reaches it at the next launch
+                  const when = view.playing ? ": from the next launch" : "";
+                  toast(game.platform, r.ok ? (on ? `Controller preset on${when}` : `Controller preset off${when}, all changes undone`) : r.error || "Failed");
                 })} />
             </PanelSectionRow>
           )}

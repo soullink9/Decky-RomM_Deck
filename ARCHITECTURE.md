@@ -83,6 +83,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `.gitea/workflows/release.yml` | Publishes a release on Gitea (Run workflow button, or a pushed version tag); its tag then reaches GitHub through the push mirror |
 | `.github/workflows/release.yml` | Publishes the same release on GitHub when a version tag arrives there (or from its own Run workflow button) |
 | `scripts/release_notes.py` | Shared by both release workflows: checks the version, gives the release's title, writes the notes (with the zip's install-from-URL address on GitHub) from CHANGELOG.md |
+| `scripts/decky_store.py` | Adds each Gitea release to the Decky store files on the `store` branch (`plugins.json`, `plugins/versions.json`) |
 | `scripts/publish_gitea_release.py` | Creates or updates the Gitea release and uploads the zip, through Gitea's API (standard library only) |
 | `scripts/check_package.py` | Checks `romm-deck.zip` the way Decky's installer reads it (one folder, `plugin.json` inside it, the files Decky loads), run by every `package.sh` |
 | `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky and checks the zip |
@@ -209,6 +210,11 @@ A preset changes a few emulator settings for the length of a game (`presets.appl
   Wiimote.WiimoteN.Source=2`, because EmuDeck's launcher rewrites `[WiimoteN] Source` in WiimoteNew.ini (its
   controller AutoMap) just before starting Dolphin. A taken-over card only gets them when it runs that same
   EmuDeck launcher.
+- A preset can also **check** that it took effect (`check(emulator_pid)` in the preset,
+  `presets.check_running`). The launcher runs it in a background thread while the game runs, so it never holds
+  the game up. The Wii check finds Dolphin among the game's processes (`procs.descendants`), reads Dolphin's own
+  command line for the `-C` settings, and lists which programs have the Wii Remote sensor's device files open
+  (`procs.holding_open`). It reports in a popup, on the game page and in the launch log, and changes nothing.
 - **Motion** presets need the handheld's motion to reach the emulator. Emulators read motion over the
   DSU protocol (UDP port 26760). EmuDeck's own motion server only recognises a real Steam Deck, so the
   plugin has its own (`motion.serve`). It reads the sensor straight from the kernel (IIO), or, when

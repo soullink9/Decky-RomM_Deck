@@ -1076,6 +1076,55 @@ async def test():
     PR.apply(wii, os.getpid())
     await P.set_preset("wii", False)
     check(wm.read_bytes() == emudeck_wm and PR.launch_args(wii) == [], "turned off: nothing added to Dolphin's command")
+
+    # While the game runs, the launcher checks the Dolphin that really started (its own command line), and who
+    # has the Wii Remote sensor open. Fake Dolphins: programs started under a parent, named dolphin-emu.
+    await P.set_preset("wii", True)
+    PR.CHECK_FIND_FOR, PR.CHECK_SETTLE = 5.0, 0.3
+    hid_device("hidraw2", "0003:0000057E:00000306")  # a DolphinBar slot
+    sensor = dev / "hidraw2"
+    (FAKE / "bin").mkdir(exist_ok=True)
+    steam_program = FAKE / "bin/steam"; shutil.copy("/bin/sh", steam_program)  # shows as "steam" to the check
+    def fake_dolphin(settings, hold=False):
+        """A parent (like EmuDeck's launcher) whose child is called dolphin-emu, with these arguments."""
+        script = (f'exec 3<"{sensor}"; ' if hold else "") + "sleep 30; true"
+        return subprocess.Popen(["bash", "-c", '( exec -a dolphin-emu /bin/sh -c "$0" "$@" ); true', script, "sh", *settings],
+                                start_new_session=True)
+    def stop_all(proc):
+        os.killpg(proc.pid, 9); proc.wait()  # SIGKILL to the parent, the fake Dolphin and its sleep
+    def checked(proc):
+        try:
+            return PR._dolphin_check(proc.pid)
+        finally:
+            stop_all(proc)
+    result = checked(fake_dolphin(real, hold=True))
+    check(result == (True, "Dolphin is using real Wii Remotes and has the USB sensor open"),
+          f"Dolphin started with the setting and holding the sensor: confirmed ({result})")
+    os.mkfifo(FAKE / "wait")  # the fake Steam waits on this, so it has no child of its own holding the sensor too
+    other = subprocess.Popen([str(steam_program), "-c", f'exec 3<"{sensor}"; exec 4<>"{FAKE / "wait"}"; read x <&4'],
+                             start_new_session=True)
+    time.sleep(0.2)
+    result = checked(fake_dolphin(real, hold=True))
+    stop_all(other)
+    check(result and result[0] and "but steam also has the Wii Remote sensor open" in result[1],
+          f"another program has the sensor open too: named ({result})")
+    result = checked(fake_dolphin(real))
+    check(result and result[0] and "hasn't opened the USB sensor yet" in result[1], f"sensor not opened by Dolphin: said so ({result})")
+    result = checked(fake_dolphin(["-b", "-e", "game.rvz"]))
+    check(result == (False, "Dolphin was started without the real Wii Remote setting, so it uses emulated remotes"),
+          f"Dolphin started without the setting (the card ran something else): said so ({result})")
+    PR.CHECK_FIND_FOR = 1.0
+    quick = subprocess.Popen(["true"]); quick.wait()
+    check(PR._dolphin_check(quick.pid) is None, "no Dolphin ever appeared: nothing claimed")
+    PR.CHECK_FIND_FOR = 5.0
+    proc = fake_dolphin(real, hold=True)
+    PR.check_running(wii, proc.pid)
+    stop_all(proc)
+    popup = json.loads(sorted((config.SETTINGS_DIR / "notify").glob("*.json"))[-1].read_text())
+    check(popup["title"] == "Use my real Wii Remotes" and "has the USB sensor open" in popup["body"]
+          and "has the USB sensor open" in config.load(PR.STATUS)["wii"],
+          f"the result is a popup during the game and the game page's line: {popup}")
+    await P.set_preset("wii", False)
     config.save(MO.CALIBRATION, calibration)
     (dmi / "sys_vendor").write_text("Valve\n"); (dmi / "product_name").write_text("Jupiter\n")
     check(P._preset_info("wii") and P._preset_info("wiiu") is None and P._preset_info("3ds") is None,
