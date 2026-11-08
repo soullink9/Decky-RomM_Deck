@@ -130,7 +130,9 @@ repository as a whole. One logical change per commit.
 
 The Gitea workflows use no actions (`actions/checkout` and the like download from GitHub): each job runs in a
 plain image from Docker Hub (`python:3.10-bookworm`, `node:22-bookworm`) and fetches the code from Gitea with git,
-so testing and releasing keep working when GitHub can't be reached.
+so testing and releasing keep working when GitHub can't be reached. When the runner's jobs can't reach Gitea at its
+public address (a runner on the same Docker network as Gitea, say), set an Actions variable `GITEA_INTERNAL_URL`
+to the address they can reach (`http://gitea-server:3000`); both workflows and the publish script use it.
 
 ## Reporting bugs
 

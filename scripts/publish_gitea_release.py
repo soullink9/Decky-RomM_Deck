@@ -8,6 +8,8 @@ API directly, with Python's standard library only (so it runs on any runner, wit
 
 It reads from the environment, as Gitea's runner sets it:
     GITHUB_SERVER_URL   the Gitea address (Gitea keeps GitHub's variable names, so workflows work on both)
+    GITEA_INTERNAL_URL  optional: Gitea's address as the runner's jobs reach it, used instead when set (a runner
+                        next to Gitea often can't reach its public address, ROOT_URL)
     GITHUB_REPOSITORY   owner/repo on Gitea
     RELEASE_TOKEN       a token that may create releases (the workflow passes the job's own token)
 
@@ -94,13 +96,14 @@ def main():
     missing = [v for v in ("GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "RELEASE_TOKEN") if not os.environ.get(v)]
     if missing:
         sys.exit(f"Not set: {', '.join(missing)}")
-    gitea = Gitea(os.environ["GITHUB_SERVER_URL"], os.environ["GITHUB_REPOSITORY"], os.environ["RELEASE_TOKEN"])
+    server = os.environ.get("GITEA_INTERNAL_URL") or os.environ["GITHUB_SERVER_URL"]
+    gitea = Gitea(server, os.environ["GITHUB_REPOSITORY"], os.environ["RELEASE_TOKEN"])
     try:
         publish(gitea, tag, commit, title, Path(notes_file).read_text(), prerelease == "true", zip_path)
     except urllib.error.HTTPError as e:
         sys.exit(f"Gitea refused {e.url}: {e.code} {e.read().decode(errors='replace')}")
     except urllib.error.URLError as e:
-        sys.exit(f"Can't reach Gitea at {os.environ['GITHUB_SERVER_URL']}: {e.reason}")
+        sys.exit(f"Can't reach Gitea at {server}: {e.reason}")
 
 
 if __name__ == "__main__":
