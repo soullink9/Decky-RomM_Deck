@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import shlex
 import shutil
 import time
 import unicodedata
@@ -561,12 +562,23 @@ def shortcut(rom_id):
     }
 
 
-def launch_command(game):
+def launch_command(game, extra_args=()):
     """The command that starts a game, plus its environment and folder.
-    A taken-over card runs its original command, the way Steam would have."""
+    A taken-over card runs its original command, the way Steam would have.
+    extra_args (from a controller preset) go to the emulator first, before the game's own arguments:
+    EmuDeck's launchers pass all their arguments on to the emulator."""
+    system = systems.SYSTEMS[game["system"]]
     if game.get("original"):
         o = game["original"]
         exe, options = o["exe"], o["options"] or ""
+        if extra_args:
+            # only when the card runs this platform's EmuDeck launcher: anything else (ES-DE, RetroArch...)
+            # wouldn't understand the emulator's arguments
+            if Path(exe.strip().strip('"')).name == system.get("launcher"):
+                exe = f"{exe} {shlex.join(extra_args)}"
+            else:
+                config.log.warning("Card runs %s, not %s: the controller preset's settings can't be given to it",
+                                   exe, system.get("launcher"))
         # Steam's rule for launch options: "%command%" stands for the card's target; without it,
         # the options are added after the target. Run through bash, as Steam would.
         if "%command%" in options:
@@ -574,10 +586,9 @@ def launch_command(game):
         else:
             cmd = f"{exe} {options}"
         return ["/bin/bash", "-c", cmd], dict(os.environ), o["start_dir"].strip('"') or None
-    system = systems.SYSTEMS[game["system"]]
     launcher = config.emudeck()["launchers"] / system["launcher"]
     args = [a.replace("{rom}", game["launch"]).replace("{cores}", str(systems.CORES)) for a in system["args"]]
-    return ["bash", str(launcher), *args], {**os.environ, **system["env"]}, None
+    return ["bash", str(launcher), *extra_args, *args], {**os.environ, **system["env"]}, None
 
 
 def install_firmware(client, platform_id):

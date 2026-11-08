@@ -55,7 +55,8 @@ If another program is using the motion port, the popup says so too. See
 
 **Wii: the game uses an emulated Wii Remote, not my real ones.**
 "Use my real Wii Remotes" works for Wii games started from a RomM Deck card (or an EmuDeck card RomM Deck has
-taken over), and only while it's turned on in that game's page. The popup when the game starts, and the line
+taken over, as long as it runs EmuDeck's Dolphin launcher), and only while it's turned on in that game's page.
+In version 0.5.0 EmuDeck's launcher undid it every time; update RomM Deck. The popup when the game starts, and the line
 under the preset on the game page, say what Dolphin can see:
 
 - *a DolphinBar has to be in mode 4*: no Wii Remote sensor in Wii Remote mode is plugged in. On a Mayflash

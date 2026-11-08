@@ -63,17 +63,20 @@ def main():
     synced = bool(saves.emu_for(game))
     if synced:
         pull_saves(rom_id, game)
+    preset_args = []  # what the controller preset adds to the emulator's command, if anything
     try:
         preset = presets.apply(game)  # a device controller preset, if turned on for this platform
         if preset:
             ok, text = preset
             config.notify("Controller preset on" if ok else "Controller preset not applied", text)
+            if ok:
+                preset_args = presets.launch_args(game)
     except Exception as e:
         config.log.exception("Controller preset not applied; starting anyway")
         config.notify("Controller preset not applied", str(e))
     before = saves.snapshot(game) if synced else None
 
-    cmd, env, cwd = library.launch_command(game)
+    cmd, env, cwd = library.launch_command(game, preset_args)
     rom = Path(game["launch"])
     config.log.info("Launching %s: %s", game["name"], cmd)
     config.log.info("Game file: %s (%s)", rom, f"{rom.stat().st_size:,} bytes" if rom.is_file() else "MISSING")

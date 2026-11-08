@@ -1021,10 +1021,18 @@ async def test():
             (dev / name).write_text("")
     hid_device("hidraw0", "0003:0000045E:0000028E")  # a USB gamepad
     hid_device("hidraw1", "0005:0000057E:00000306")  # a Wii Remote paired over Bluetooth: Dolphin finds those itself
+    real = ["-C", "Wiimote.Wiimote1.Source=2", "-C", "Wiimote.Wiimote2.Source=2", "-C", "Wiimote.Wiimote3.Source=2",
+            "-C", "Wiimote.Wiimote4.Source=2", "-C", "Dolphin.Core.WiimoteContinuousScanning=True"]
     ok, text = PR.apply(wii, os.getpid())
-    sources = [INI.get_value(wm, f"Wiimote{n}", "Source") for n in range(1, 5)]
-    check(ok and sources == ["2"] * 4 and INI.get_value(core, "Core", "WiimoteContinuousScanning") == "True" and dsu_reading()[0] == "no-motion",
-          f"during a Wii game: all four Wii Remotes real, Dolphin keeps looking for them, no motion server ({text})")
+    check(ok and PR.launch_args(wii) == real and dsu_reading()[0] == "no-motion",
+          f"during a Wii game: Dolphin is told on its command line to use four real Wii Remotes and keep looking for them, no motion server ({text})")
+    check(wm.read_bytes() == emudeck_wm and core.read_bytes() == emudeck_core,
+          "…and Dolphin's settings files aren't touched")
+    # EmuDeck's launcher (its controller AutoMap) sets every remote back to emulated in WiimoteNew.ini right
+    # before Dolphin starts, which is what undid this preset when it changed that file. -C ranks above the file.
+    INI.set_value(wm, "Wiimote1", "Source", "1")
+    check(PR.launch_args(wii) == real, "EmuDeck setting the remotes to emulated in WiimoteNew.ini doesn't change what Dolphin is told")
+    wm.write_bytes(emudeck_wm)
     check("DolphinBar has to be in mode 4" in text and "mode 4" in config.load(PR.STATUS)["wii"],
           f"no Wii Remote sensor on USB: the popup and the game page say a DolphinBar needs mode 4 ({text})")
     PR.restore()
@@ -1035,24 +1043,39 @@ async def test():
     PR.restore()
     hid_device("hidraw4", "0003:0000057E:00000306", openable=False)  # a slot Dolphin isn't allowed to open
     ok, text = PR.apply(wii, os.getpid())
-    check(ok and "isn't allowed to open the Wii Remote sensor" in text and INI.get_value(wm, "Wiimote1", "Source") == "2",
+    check(ok and "isn't allowed to open the Wii Remote sensor" in text and PR.launch_args(wii) == real,
           f"a sensor Dolphin can't open: the preset still applies, and says why remotes on it won't connect ({text})")
     shutil.rmtree(hidraw); PR.HIDRAW = hidraw  # no raw HID devices at all
     ok, text = PR.apply(wii, os.getpid())
     check(ok and "mode 4" in text, f"no raw HID devices at all: no error ({text})")
-    check("[Wiimote1]\nSource = 2\nDevice = SDL/0/Steam Deck Controller" in wm.read_text() or "Source = 2" in wm.read_text().split("[Wiimote2]")[0],
-          "…written in Dolphin's own style, inside each remote's section")
-    INI.set_value(wm, "Wiimote4", "Source", "0")  # you turn off player 4 in Dolphin during the game
     PR.restore()
-    check(INI.get_value(wm, "Wiimote4", "Source") == "0" and [INI.get_value(wm, f"Wiimote{n}", "Source") for n in range(1, 4)] == [None] * 3
-          and core.read_bytes() == emudeck_core, "after: emulated remotes back (your player 4 change kept), Dolphin.ini exactly as it was")
-    wm.write_bytes(emudeck_wm)
+    check(wm.read_bytes() == emudeck_wm and core.read_bytes() == emudeck_core and config.load("controller-backup") == {},
+          "after the game: nothing to put back, both Dolphin files exactly as they were")
+
+    # the arguments reach Dolphin through EmuDeck's launcher, before the game's own
+    wii_game = {"system": "wii", "name": "Mario Kart Wii", "launch": str(HOME / "Emulation/roms/wii/Mario Kart Wii.rvz")}
+    cmd, env, cwd = library.launch_command(wii_game, real)
+    check(cmd == ["bash", str(L / "dolphin-emu.sh"), *real, "-b", "-e", wii_game["launch"]], f"RomM Deck card: {cmd}")
+    (FAKE / "calls.log").write_text("")
+    subprocess.run(cmd, env=env)
+    check((FAKE / "calls.log").read_text().strip() == f"dolphin 0 {' '.join(real)} -b -e {wii_game['launch']}",
+          f"…and EmuDeck's launcher passes them on: {(FAKE / 'calls.log').read_text()!r}")
+    taken = {**wii_game, "original": {"exe": f'"{L}/dolphin-emu.sh"', "options": f'vblank_mode=0 %command% -b -e "{wii_game["launch"]}"', "start_dir": f'"{L}"'}}
+    cmd, env, cwd = library.launch_command(taken, real)
+    check(cmd[2] == f'vblank_mode=0 "{L}/dolphin-emu.sh" {" ".join(real)} -b -e "{wii_game["launch"]}"',
+          f"taken-over EmuDeck card: the arguments go right after its launcher: {cmd[2]}")
+    other = {**wii_game, "original": {"exe": '"/usr/bin/es-de"', "options": "", "start_dir": ""}}
+    check(library.launch_command(other, real)[0][2] == '"/usr/bin/es-de" ', "a card running something else is left as it is")
+    check(library.launch_command(wii_game)[0] == ["bash", str(L / "dolphin-emu.sh"), "-b", "-e", wii_game["launch"]],
+          "preset off: Dolphin started as before")
+    # a backup left by an earlier version, which changed WiimoteNew.ini, is still put back
+    INI.set_value(wm, "Wiimote1", "Source", "2")
+    config.save("controller-backup", {"_changes": [{"kind": "ini", "path": str(wm), "key": ["Wiimote1", "Source"], "before": None, "ours": "2"}]})
     PR.apply(wii, os.getpid()); PR.restore()
-    check(wm.read_bytes() == emudeck_wm and core.read_bytes() == emudeck_core, "a plain game: both Dolphin files exactly as they were")
-    # a crash during a Wii game: put back at the next launch of anything
+    check(wm.read_bytes() == emudeck_wm, "an earlier version's change to WiimoteNew.ini is put back at the next launch")
     PR.apply(wii, os.getpid())
     await P.set_preset("wii", False)
-    check(wm.read_bytes() == emudeck_wm, "turning it off mid-way puts Dolphin back right away")
+    check(wm.read_bytes() == emudeck_wm and PR.launch_args(wii) == [], "turned off: nothing added to Dolphin's command")
     config.save(MO.CALIBRATION, calibration)
     (dmi / "sys_vendor").write_text("Valve\n"); (dmi / "product_name").write_text("Jupiter\n")
     check(P._preset_info("wii") and P._preset_info("wiiu") is None and P._preset_info("3ds") is None,

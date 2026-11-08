@@ -32,14 +32,21 @@ sensor a different way (after an InputPlumber update, say), the next game's popu
 **Wii** (Dolphin): all four players use real Wii Remotes instead of emulated ones, and Dolphin keeps looking
 for them, so pressing **1+2** on a remote connects it at any time during the game.
 
+RomM Deck tells Dolphin this when it starts the game, on Dolphin's command line, and doesn't change Dolphin's
+settings files. That's because EmuDeck's launcher sets every Wii Remote back to emulated in those files just
+before Dolphin starts (its controller AutoMap). Settings given on the command line win over the files and last
+only until Dolphin closes, so there's nothing to put back.
+
 Remotes can connect over Bluetooth or through a USB Wii Remote sensor such as a Mayflash DolphinBar (on the
 handheld or its dock). A DolphinBar has to be in **mode 4**, its Wii Remote mode. When the game starts, the popup
 says whether Dolphin can use a sensor on USB; [Troubleshooting](Troubleshooting.md) explains each message.
 
 ## How your settings are kept safe
 
-- Every setting a preset will change is recorded first, so it's put back after the game, also after a crash or
-  a power-off (at the next launch of any game).
+- Settings given on the emulator's command line (the Wii preset) last only until it closes; Dolphin never saves
+  them.
+- Every setting a preset will change in a file is recorded first, so it's put back after the game, also after a
+  crash or a power-off (at the next launch of any game).
 - A setting is only put back if it still has the preset's value: anything you change in the emulator during the
   game is kept.
 - Only the one line changes in each settings file; the rest of the file stays exactly as it was.

@@ -61,7 +61,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `py_modules/romm_deck/library.py` | Games on this PC: download, recognising games already in `Emulation/roms`, Steam card commands, launching, removing, BIOS |
 | `py_modules/romm_deck/saves.py` | Save and save-state sync with RomM, and the checks before anything is deleted |
 | `py_modules/romm_deck/session.py` | What happens after a game closes, however it closes |
-| `py_modules/romm_deck/presets.py` | Controller presets: emulator settings changed for the length of a game, and put back after |
+| `py_modules/romm_deck/presets.py` | Controller presets: emulator settings changed for the length of a game (in files, put back after, or on the emulator's command line) |
 | `py_modules/romm_deck/motion.py` | The handheld's motion sensor, calibration, and the DSU motion server emulators read |
 | `py_modules/romm_deck/autoload.py` | Turning off "load the last save state on start" in every emulator |
 | `py_modules/romm_deck/metadata.py` | RomM's data shaped for display: covers, Steam page details, links, Activity, screenshots |
@@ -198,6 +198,13 @@ A preset changes a few emulator settings for the length of a game (`presets.appl
   setting is only put back if it still holds the preset's value, so a change the player made in the
   emulator meanwhile is kept.
 - INI files are edited one line at a time (`ini.py`), never rewritten, so a file goes back byte for byte.
+- A preset can instead give the emulator **command-line arguments** (`args()` in the preset,
+  `presets.launch_args`), which `library.launch_command` puts right after the EmuDeck launcher, before the
+  game's own arguments (EmuDeck's launchers pass every argument on). Nothing is recorded or put back: they
+  last as long as the emulator runs. The Wii preset works this way, with Dolphin's `-C
+  Wiimote.WiimoteN.Source=2`, because EmuDeck's launcher rewrites `[WiimoteN] Source` in WiimoteNew.ini (its
+  controller AutoMap) just before starting Dolphin. A taken-over card only gets them when it runs that same
+  EmuDeck launcher.
 - **Motion** presets need the handheld's motion to reach the emulator. Emulators read motion over the
   DSU protocol (UDP port 26760). EmuDeck's own motion server only recognises a real Steam Deck, so the
   plugin has its own (`motion.serve`). It reads the sensor straight from the kernel (IIO), or, when

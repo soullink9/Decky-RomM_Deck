@@ -9,6 +9,12 @@
 - Every `romm-deck.zip` is checked the way Decky reads it before it's published, so a release can't stop at
   "Parsing zip file".
 
+### Controller presets
+
+- Fixed "Use my real Wii Remotes": Dolphin still used emulated remotes. EmuDeck's launcher sets every Wii
+  Remote back to emulated in Dolphin's settings just before Dolphin starts, undoing the preset. The preset now
+  tells Dolphin on its command line instead, which wins over its settings files and changes nothing in them.
+
 ### Repository
 
 - A brand icon for RomM Deck, in `assets/brand/`.

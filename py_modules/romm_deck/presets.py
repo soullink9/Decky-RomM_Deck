@@ -1,5 +1,6 @@
 """Controller presets: per platform, off unless turned on. Each one changes a few emulator settings
-while a game runs, and puts them back when it closes (also after a crash or power-off).
+while a game runs: in the emulator's settings files, put back when it closes (also after a crash or
+power-off), or on the emulator's command line, which only lasts as long as the emulator runs.
 
 On a ROG Ally / Xbox Ally (X), "motion" presets:
   Switch (Ryujinx), Wii U (Cemu) and 3DS (Azahar) read motion from the plugin's own motion server
@@ -8,13 +9,14 @@ On a ROG Ally / Xbox Ally (X), "motion" presets:
   sets it where it isn't. The motion is calibrated once from the game page (motion.calibrate).
 On any device:
   Wii (Dolphin): use real Wii Remotes for all four players instead of emulated ones, and say whether
-  Dolphin can use a Wii Remote sensor on USB (a DolphinBar in mode 4).
+  Dolphin can use a Wii Remote sensor on USB (a DolphinBar in mode 4). Given on Dolphin's command
+  line, since EmuDeck's launcher rewrites the same settings in Dolphin's files.
 
-Every change is recorded first (settings/controller-backup.json), and after the game a setting is
+Every change to a file is recorded first (settings/controller-backup.json), and after the game a setting is
 only put back if it still has the preset's value, so a change you make in the emulator is kept.
 
 To add a device: an entry in DEVICES. To add a platform: an entry in a "presets" list, with a
-plan() that says which settings to change.
+plan() that says which settings to change, or args() for the emulator's command line.
 """
 import json
 import os
@@ -42,7 +44,6 @@ CEMU_PROFILES = [H / ".config/Cemu/controllerProfiles/controller0.xml",
                  FP / "info.cemu.Cemu/data/cemu/controllerProfiles/controller0.xml"]
 AZAHAR_CONFIGS = [H / ".config/azahar-emu/qt-config.ini",
                   FP / "io.github.azahar.Azahar/config/azahar-emu/qt-config.ini"]
-DOLPHIN_DIRS = [FP / "org.DolphinEmu.dolphin-emu/config/dolphin-emu", H / ".config/dolphin-emu"]
 
 # What each emulator's setting looks like when it reads motion from our server (DSU, a.k.a. "CemuHook",
 # the standard way emulators take motion from another program over UDP)
@@ -113,22 +114,20 @@ def _azahar_motion():
     return changes
 
 
-def _dolphin_real_wiimotes():
+def _dolphin_real_wiimotes_args():
     """Dolphin: all four Wii Remotes real (not emulated), and keep looking for them, so pressing 1+2
-    on a remote connects it."""
-    changes = []
-    for folder in DOLPHIN_DIRS:
-        if not folder.is_dir():
-            continue
-        wiimotes, core = folder / "WiimoteNew.ini", folder / "Dolphin.ini"
-        for n in range(1, 5):
-            current = ini.get_value(wiimotes, f"Wiimote{n}", "Source")
-            if current != REAL_WIIMOTE:
-                changes.append(_change("ini", wiimotes, [f"Wiimote{n}", "Source"], current, REAL_WIIMOTE))
-        current = ini.get_value(core, "Core", "WiimoteContinuousScanning")
-        if current != "True":
-            changes.append(_change("ini", core, ["Core", "WiimoteContinuousScanning"], current, "True"))
-    return changes
+    on a remote connects it.
+
+    These go on Dolphin's command line (-C <file>.<section>.<key>=<value>), not into its settings files:
+    EmuDeck's launcher rewrites every [WiimoteN] Source in WiimoteNew.ini to "emulated" (its controller
+    AutoMap) just before it starts Dolphin, which undid the same change made in the file. Settings given
+    with -C sit above the files for that run only and Dolphin never saves them, so there's nothing to
+    put back afterwards. (Only a game's own Dolphin settings, GameSettings/<id>.ini, rank higher.)"""
+    args = []
+    for n in range(1, 5):
+        args += ["-C", f"Wiimote.Wiimote{n}.Source={REAL_WIIMOTE}"]
+    args += ["-C", "Dolphin.Core.WiimoteContinuousScanning=True"]
+    return args
 
 
 def _usb_wii_remotes():
@@ -173,8 +172,10 @@ def _wii_remotes_running():
 
 # The presets on offer. DEVICES: only on that handheld (recognised by its firmware's name);
 # ANY_DEVICE: everywhere. Each preset: a label and description for the game page, whether it needs
-# the motion server, plan(), which lists the settings to change for one game, and optionally running(),
-# which says what's going on during the game (by default, that it's reading the Ally's motion).
+# the motion server, and how it changes the emulator for one game: plan() lists settings to change in its
+# files (put back after the game), args() lists arguments for the emulator's command line (gone when it
+# closes). Optionally running() says what's going on during the game (by default, that it's reading the
+# Ally's motion).
 ALLY_MOTION = "Motion and tilt from the Ally's own sensor"
 DEVICES = {
     "rog-ally": {
@@ -192,10 +193,10 @@ DEVICES = {
     },
 }
 ANY_DEVICE = {
-    "wii": {"label": "Use my real Wii Remotes", "motion": False, "plan": _dolphin_real_wiimotes,
+    "wii": {"label": "Use my real Wii Remotes", "motion": False, "args": _dolphin_real_wiimotes_args,
             "about": "Dolphin uses real Wii Remotes for all four players instead of emulated ones; press 1+2 on "
-                     "a remote to connect it. A DolphinBar has to be in mode 4. Your own Dolphin settings come "
-                     "back when the game closes.",
+                     "a remote to connect it. A DolphinBar has to be in mode 4. Only this game is told to use "
+                     "them: your Dolphin settings aren't changed.",
             "running": _wii_remotes_running},
 }
 
@@ -262,7 +263,7 @@ def apply(game, launcher_pid=None):
         if not ok:
             restore()
             return _report(platform, False, why)
-    changes = preset["plan"]()
+    changes = preset["plan"]() if "plan" in preset else []
     backup["_changes"] = changes
     config.save(BACKUP, backup)  # recorded before anything changes, so a crash midway is undone too
     for c in changes:
@@ -270,6 +271,16 @@ def apply(game, launcher_pid=None):
     config.log.info("Controller preset on for %s (%s): %d settings changed", game["name"], platform, len(changes))
     running = preset["running"]() if "running" in preset else "reading the Ally's motion"
     return _report(platform, True, f"{preset['label']} · {running}")
+
+
+def launch_args(game):
+    """Arguments the game's turned-on preset adds to the emulator's command (none for most presets).
+    Called after apply() has turned the preset on for this launch."""
+    platform = game.get("system")
+    if not enabled(platform):
+        return []
+    preset = _turned_on_preset(platform)
+    return preset["args"]() if preset and "args" in preset else []
 
 
 def _turned_on_preset(platform):

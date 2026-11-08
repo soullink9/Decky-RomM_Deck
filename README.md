@@ -28,7 +28,7 @@ commands.
 - **RomM on Steam's game pages**: the description, developer, rating and every other detail, screenshots,
   an Activity list (notes, RetroAchievements unlocks, saves) and links back to RomM.
 - **Controller presets**: motion and tilt from the ROG Ally's own sensor for Switch, Wii U and 3DS, and
-  real Wii Remotes for Wii. Every setting goes back after the game.
+  real Wii Remotes for Wii. Your emulator settings are as they were after the game.
 
 ## Install
 
