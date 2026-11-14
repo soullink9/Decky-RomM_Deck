@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": 100000,
+    "name": "RomM Deck",
+    "author": "soullink9",
+    "description": "Download games from your RomM server into EmuDeck, and sync saves and save states back.",
+    "tags": [
+      "romm",
+      "emudeck"
+    ],
+    "image_url": "http://gitea-server:3000/Soullink/Decky-RomM_Deck/raw/tag/v0.5.3/assets/brand/icon@2x.png",
+    "visible": true,
+    "versions": [
+      {
+        "name": "0.5.3",
+        "hash": "842dcb75ecf68873ac28554bceeddeb19ff860dc3b809a25d7292e8460364b2f",
+        "created": "2026-11-14T04:50:52+00:00",
+        "artifact": "http://gitea-server:3000/Soullink/Decky-RomM_Deck/releases/download/v0.5.3/romm-deck.zip"
+      }
+    ]
+  }
+]

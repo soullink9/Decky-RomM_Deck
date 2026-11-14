@@ -1,1 +1,7 @@
-{}
+{
+  "RomM Deck": [
+    "0.5.3",
+    "842dcb75ecf68873ac28554bceeddeb19ff860dc3b809a25d7292e8460364b2f",
+    "http://gitea-server:3000/Soullink/Decky-RomM_Deck/releases/download/v0.5.3/romm-deck.zip"
+  ]
+}
