@@ -81,11 +81,12 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `.github/ISSUE_TEMPLATE/` | The bug-report form |
 | `.gitea/workflows/test.yml` | Runs every test on each push to Gitea (backend on Python 3.10, frontend and zip on Node 22), with no actions downloaded from GitHub |
 | `.gitea/workflows/release.yml` | Publishes a release on Gitea (Run workflow button, or a pushed version tag) and adds it to the Decky store; its tag then reaches GitHub through the push mirror |
-| `.gitea/workflows/store.yml` | Every six hours: refreshes the Decky store on the `store` branch with the official listing and current links |
+| `.gitea/workflows/store.yml` | Every hour: refreshes the Decky store on the `store` branch with the official listing, and moves each release's link to GitHub once GitHub has it |
 | `.github/workflows/release.yml` | Publishes the same release on GitHub when a version tag arrives there (or from its own Run workflow button) |
 | `scripts/release_notes.py` | Shared by both release workflows: checks the version, gives the release's title, writes the notes (with the zip's install-from-URL address on GitHub) from CHANGELOG.md |
 | `scripts/update_decky_store.sh` | Fetches the `store` branch, updates it (a release, or a refresh) and pushes it back, retrying if it moved meanwhile |
-| `scripts/decky_store.py` | Builds the Decky store files: RomM Deck's releases (`own.json`, links worked out from `PUBLIC_GITEA_URL`) merged with the official store's listing, into `plugins.json` and `plugins/versions.json` |
+| `scripts/decky_store.py` | Builds the Decky store files: RomM Deck's releases (`own.json`; links to GitHub's release when it has the zip, Gitea's at `PUBLIC_GITEA_URL` otherwise) merged with the official store's listing, into `plugins.json` and `plugins/versions.json` |
+| `scripts/build_zip.py` | Zips the plugin reproducibly (fixed dates, sorted entries, plain permissions, stored), so Gitea's and GitHub's builds of a release are byte-for-byte the same |
 | `scripts/publish_gitea_release.py` | Creates or updates the Gitea release and uploads the zip, through Gitea's API (standard library only) |
 | `scripts/check_package.py` | Checks `romm-deck.zip` the way Decky's installer reads it (one folder, `plugin.json` inside it, the files Decky loads), run by every `package.sh` |
 | `package.json`, `build.mjs`, `package.sh` | The build: esbuild bundles `src/` into `dist/index.js`; `package.sh` zips the plugin for Decky and checks the zip |
@@ -266,7 +267,8 @@ flowchart LR
     Run["Release → Run workflow<br/>(or a version tag)"] --> Rel["release.yml<br/>check version, test, build zip"]
     Rel --> GRel["Gitea release<br/>publish_gitea_release.py"]
     Rel --> Store["store branch<br/>update_decky_store.sh"]
-    Timer["every 6 hours"] --> SY["store.yml"] --> Store
+    Timer["every hour"] --> SY["store.yml"] --> Store
+    GHRel -. "download links" .-> Store
     Official[("official Decky store")] -.-> Store
     GRel -- "push mirror (tag)" --> GH["GitHub release.yml<br/>same checks"] --> GHRel["GitHub release"]
 ```
@@ -276,8 +278,10 @@ flowchart LR
 - `scripts/release_notes.py` and `scripts/check_package.py` are shared by both release workflows, so a release
   is checked and described the same way on both. The notes always point at GitHub, the copy people install from.
 - The store (`scripts/decky_store.py`) keeps only RomM Deck's versions and zip hashes (`own.json`) and works the
-  download links out on every build from `PUBLIC_GITEA_URL`, so a move to a new domain needs only that variable
-  changed. Decky asks for `<store>` and `<store>/versions`; the web server maps both to files on the `store`
+  download links out on every build: GitHub's release once it has the zip (with the hash of GitHub's copy),
+  otherwise Gitea's at `PUBLIC_GITEA_URL`. Gitea serves the store list; GitHub can't (no CORS answer for Decky's
+  request). Both workflows build the zip with `scripts/build_zip.py`, which gives the same bytes for the same
+  files on any machine. Decky asks for `<store>` and `<store>/versions`; the web server maps both to files on the `store`
   branch ([CONTRIBUTING.md](CONTRIBUTING.md#a-decky-store-on-gitea)).
 
 ## State on disk

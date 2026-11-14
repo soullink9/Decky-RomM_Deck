@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Install
+
+- The self-hosted Decky store sends the handheld to GitHub for downloads: each version links to its GitHub
+  release as soon as GitHub has it (checked every hour), and to the Gitea release until then. The store list
+  itself stays on Gitea, since GitHub can't serve one to Decky.
+- The store is never published without the official Decky store's listing, so the handheld can't lose the
+  official plugins or their updates. The official store is asked with its own user agent.
+- `romm-deck.zip` is now byte-for-byte reproducible, so Gitea's and GitHub's builds of a release are identical.
+- The store branch has a README saying what it is.
+
 ## 0.5.3 (2026-11-13)
 
 Initial release: the first public beta of RomM Deck, a Decky Loader plugin for RomM and EmuDeck. The
@@ -75,7 +87,7 @@ Initial release: the first public beta of RomM Deck, a Decky Loader plugin for R
 - Self-hosted first: a Gitea runner tests every push and publishes releases with nothing downloaded from GitHub
   (`.gitea/workflows/`), and the same release is published on GitHub when its tag arrives there.
 - A Decky plugin store on the `store` branch: every release plus the official Decky store's listing, refreshed
-  every six hours, for a Decky that uses a self-hosted store. See
+  regularly, for a Decky that uses a self-hosted store. See
   [CONTRIBUTING](CONTRIBUTING.md#a-decky-store-on-gitea).
 - A bug-report form and a brand icon (`assets/brand/`).
 

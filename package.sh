@@ -7,7 +7,8 @@ rm -rf build romm-deck.zip
 mkdir -p build/romm-deck
 cp -r plugin.json package.json main.py LICENSE README.md dist bin py_modules build/romm-deck/
 find build -name '__pycache__' -prune -exec rm -rf {} +
-# Python's own zip tool, so the build works on any runner with Python (no `zip` to install)
-(cd build && python3 -m zipfile -c ../romm-deck.zip romm-deck)
+# the same files always give the same zip, so Gitea's and GitHub's builds of a release are identical
+# (scripts/build_zip.py says why that matters); Python only, so no `zip` to install on a runner
+python3 scripts/build_zip.py build/romm-deck romm-deck.zip
 python3 scripts/check_package.py romm-deck.zip
 echo "made romm-deck.zip"

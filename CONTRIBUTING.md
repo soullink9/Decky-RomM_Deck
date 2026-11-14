@@ -156,17 +156,27 @@ The repository's `store` branch is a Decky plugin store: every release of RomM D
 store's whole listing, so a Decky using it loses nothing. Decky can use it as its custom store: Decky settings →
 General → Plugin Store → **Custom**, and the store address below.
 
+The store list is served by Gitea, but RomM Deck itself downloads from **GitHub**: GitHub can't serve a Decky
+store (Decky's request needs a CORS answer GitHub's file hosting doesn't give, and two addresses, below), but it
+serves release downloads fine.
+
 - Each release made on Gitea adds itself (the last step of `.gitea/workflows/release.yml`).
-- `.gitea/workflows/store.yml` refreshes the official listing every six hours, or from Actions → Decky store →
-  Run workflow. If the official store can't be reached, the copy from last time is kept. Official plugins still
-  download from the official store; only RomM Deck's come from Gitea.
-- Download and icon links are written from the Actions variable `PUBLIC_GITEA_URL` (the address the handheld
-  uses, for example `https://gitea.example.com`), or Gitea's own address (its ROOT_URL) when it isn't set. Set it
-  once on your user (Settings → Actions → Variables). If Gitea moves, change the variable and run the Decky store
-  workflow: every release's link is rewritten, since only versions and hashes are stored (`own.json`).
+- `.gitea/workflows/store.yml` refreshes the store every hour, or from Actions → Decky store → Run workflow:
+  - the official listing. If the official store can't be reached, the copy from last time is kept; if there's
+    no copy at all, the store isn't changed, since publishing it would take every official plugin (and their
+    updates) away from the handheld. Official plugins still download from the official store.
+  - each RomM Deck version's link: its GitHub release once GitHub has the zip (the push mirror sends the tag,
+    and GitHub's workflow publishes it, usually minutes after the Gitea release), Gitea's release until then.
+    The hash listed is the one of the zip GitHub serves, downloaded once and kept in `own.json`. Both builds
+    are byte-for-byte identical anyway (`scripts/build_zip.py`), so either download matches.
+- Gitea's links are written from the Actions variable `PUBLIC_GITEA_URL`: the address the handheld reaches Gitea
+  at, for example `https://gitea.example.com`. Set it, on your user (Settings → Actions → Variables): without it
+  the links use Gitea's own address, which on a runner next to Gitea is often an internal one like
+  `http://gitea-server:3000` that the handheld can't reach. If Gitea moves, change the variable; the next refresh
+  rewrites every Gitea link, since only versions and hashes are stored (`own.json`).
 - `scripts/update_decky_store.sh` does the work for both workflows (`scripts/decky_store.py` builds the files):
-  `plugins.json`, the list with every version's SHA-256 (and, for ours, its address), and `plugins/versions.json`,
-  what Decky 3.3.1 and newer use for update checks.
+  `plugins.json`, the list with every version's SHA-256 and, for ours, its address; `plugins/versions.json`, what
+  Decky 3.3.1 and newer use for update checks; and a `README.md` saying what the branch is.
 
 Decky asks for `<store address>` and `<store address>/versions`. A plain file host can't answer both (one would
 be a folder of the other), so the web server in front of Gitea maps them to the two files. With Traefik v3, add
@@ -185,8 +195,9 @@ to Gitea's container labels (change the host, owner and repository to yours; `$$
       - "traefik.http.middlewares.decky-store-cors.headers.accesscontrolallowheaders=X-Decky-Version"
 ```
 
-The store address is then `https://gitea.example.com/decky-store/plugins`. Decky reads the store from Steam's
-interface, which needs the CORS headers; downloads come straight from the Gitea release. The repository has to be
+The repository path in the replacement is the one on Gitea (owner and repository as Gitea shows them). The store
+address is then `https://gitea.example.com/decky-store/plugins`. Decky reads the store from Steam's interface,
+which needs the CORS headers; downloads go straight to GitHub's (or Gitea's) release. The repository has to be
 readable without signing in.
 
 Decky has one store at a time, which is why the official listing is merged in: with this store chosen, Decky still

@@ -81,7 +81,7 @@ official_url = f"http://127.0.0.1:{official_server.server_port}/plugins"
 
 first = make_zip("first.zip", {**good, "romm-deck/main.py": "first"})
 decky_store.add_release(store, "v0.5.1", first, "owner/decky-romm_deck")
-listing, versions = decky_store.build(store, "https://gitea.example.com/", decky_store.fetch_official(store, official_url))
+listing, versions = decky_store.build(store, "https://gitea.example.com/", official=decky_store.fetch_official(store, official_url))
 ours = listing[0] if listing else {}
 artifact = "https://gitea.example.com/owner/decky-romm_deck/releases/download/v0.5.1/romm-deck.zip"
 check(ours.get("name") == plugin["name"] and ours["author"] == plugin["author"] and ours["tags"] == plugin["publish"]["tags"]
@@ -101,7 +101,7 @@ second = make_zip("second.zip", {**good, "romm-deck/main.py": "second"})
 decky_store.add_release(store, "v0.5.2", second, "owner/decky-romm_deck")
 decky_store.add_release(store, "v0.5.2", second, "owner/decky-romm_deck")
 FakeOfficial.up = False
-listing, versions = decky_store.build(store, "https://git.newdomain.example", decky_store.fetch_official(store, official_url))
+listing, versions = decky_store.build(store, "https://git.newdomain.example", official=decky_store.fetch_official(store, official_url))
 ours = listing[0]
 check([v["name"] for v in ours["versions"]] == ["0.5.2", "0.5.1"], "a newer release goes on top, once; the older one stays installable")
 check(all(v["artifact"].startswith("https://git.newdomain.example/owner/") for v in ours["versions"])
@@ -109,7 +109,64 @@ check(all(v["artifact"].startswith("https://git.newdomain.example/owner/") for v
       "Gitea moved to a new address: every release's link follows on the next build")
 check([p["name"] for p in listing] == [plugin["name"], "CSS Loader"],
       "official store unreachable: its listing from last time is kept")
+check((store / "README.md").exists(), "the store branch says what it is (README.md)")
+
+# GitHub first: once a version's zip is on its GitHub release, the store links there, with GitHub's own hash
+github = {"https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.1/romm-deck.zip": b"github's build of 0.5.1"}
+asked = []
+def fake_github(url):
+    asked.append(url)
+    return github.get(url)
+FakeOfficial.up = True
+official = decky_store.fetch_official(store, official_url)
+listing, versions = decky_store.build(store, "https://gitea.example.com", "soullink9/Decky-RomM_Deck", official, fake_github)
+by_version = {v["name"]: v for v in listing[0]["versions"]}
+check(by_version["0.5.1"]["artifact"] == "https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.1/romm-deck.zip"
+      and by_version["0.5.1"]["hash"] == hashlib.sha256(b"github's build of 0.5.1").hexdigest(),
+      "a version on GitHub: downloaded from GitHub, with the hash of the bytes GitHub serves")
+check(by_version["0.5.2"]["artifact"].startswith("https://gitea.example.com/") and by_version["0.5.2"]["hash"] == hashlib.sha256(second.read_bytes()).hexdigest(),
+      "a version not on GitHub yet: Gitea's release, with Gitea's hash")
+check(versions[plugin["name"]][2].startswith("https://gitea.example.com/") and listing[0]["image_url"].startswith("https://gitea.example.com/"),
+      "…so the update check and icon use Gitea's until the newest version reaches GitHub")
+github["https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.2/romm-deck.zip"] = second.read_bytes()
+asked.clear()
+listing, versions = decky_store.build(store, "https://gitea.example.com", "soullink9/Decky-RomM_Deck", official, fake_github)
+check(versions[plugin["name"]] == ["0.5.2", hashlib.sha256(second.read_bytes()).hexdigest(),
+                                   "https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.2/romm-deck.zip"]
+      and listing[0]["image_url"] == "https://raw.githubusercontent.com/soullink9/Decky-RomM_Deck/v0.5.2/assets/brand/icon@2x.png",
+      "the next build after GitHub's release appears: the newest version, its update check and icon move to GitHub")
+check(asked == ["https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.2/romm-deck.zip"],
+      f"a version already found on GitHub isn't downloaded again (its hash is kept in own.json): {asked}")
+
+# no official listing at all (never fetched, and the official store down): nothing is written
+FakeOfficial.up = False
+empty_store = tmp / "empty-store"
+decky_store.add_release(empty_store, "v0.5.2", second, "owner/decky-romm_deck")
+try:
+    decky_store.fetch_official(empty_store, official_url)
+    refused = False
+except decky_store.NoOfficialListing:
+    refused = True
+check(refused and not (empty_store / "plugins.json").exists(),
+      "official store unreachable with no copy from before: refused, so the official plugins never vanish from the store")
 official_server.shutdown()
+
+# --- build_zip.py: the same files always make the same zip, so Gitea's and GitHub's builds match ------------
+import build_zip, os as _os, time as _time
+tree = tmp / "zipsrc" / "romm-deck"
+(tree / "bin").mkdir(parents=True)
+(tree / "plugin.json").write_text('{"name": "RomM Deck"}')
+(tree / "bin" / "run.sh").write_text("#!/bin/sh\n"); (tree / "bin" / "run.sh").chmod(0o755)
+build_zip.build(tree, tmp / "one.zip")
+_time.sleep(1.1)
+for f in tree.rglob("*"):
+    _os.utime(f)  # newer modification times, as on another machine or a later checkout
+build_zip.build(tree, tmp / "two.zip")
+same = (tmp / "one.zip").read_bytes() == (tmp / "two.zip").read_bytes()
+modes = {i.filename: oct(i.external_attr >> 16) for i in zipfile.ZipFile(tmp / "one.zip").infolist()}
+check(same, "building the same files again, with other file times, gives a byte-for-byte identical zip")
+check(modes.get("romm-deck/bin/run.sh") == "0o100755" and modes.get("romm-deck/plugin.json") == "0o100644"
+      and list(modes)[0] == "romm-deck/", f"one top folder; executables stay executable, the rest plain files: {modes}")
 
 # --- publish_gitea_release.py against a fake Gitea ------------------------------------------------------------
 class FakeGitea(BaseHTTPRequestHandler):

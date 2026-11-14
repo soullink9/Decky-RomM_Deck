@@ -1,19 +1,22 @@
-# Keeps the Decky store on the `store` branch up to date with the official Decky store's listing, so a Decky
-# using this Gitea as its custom store still lists and updates every official plugin. Each release adds itself
-# (release.yml); this refreshes the rest every six hours. It also rewrites every download link with Gitea's
-# current public address (PUBLIC_GITEA_URL), so a move to a new domain reaches the store within six hours, or
-# straight away from Actions → Decky store → Run workflow.
+# Keeps the Decky store on the `store` branch up to date, every hour (or from Actions → Decky store → Run workflow):
+#   - the official Decky store's listing, so a Decky using this store still lists and updates every official plugin
+#     (when the official store can't be reached, the copy from last time is kept);
+#   - each RomM Deck release's download link: GitHub's release once the push mirror and GitHub's workflow have
+#     published it (usually minutes after the Gitea release), Gitea's until then;
+#   - Gitea's links use its current public address (PUBLIC_GITEA_URL), so a move to a new domain reaches the
+#     store within the hour.
+# Each release adds itself (release.yml). A refresh with nothing new commits nothing.
 #
-# Uses no actions, like the other workflows, so it runs when GitHub can't be reached. When the official store
-# can't be reached, the copy from last time is kept.
+# Uses no actions, like the other workflows, so it runs when GitHub can't be reached.
 name: Decky store
 
 on:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 env:
+  PUBLIC_REPOSITORY: soullink9/Decky-RomM_Deck  # the GitHub copy, where the handheld downloads releases
   LOCAL_GITEA_URL: ${{ vars.LOCAL_GITEA_URL }}
   PUBLIC_GITEA_URL: ${{ vars.PUBLIC_GITEA_URL }}
   STORE_AUTHOR_NAME: Soullink

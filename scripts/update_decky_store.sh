@@ -6,9 +6,10 @@
 # Reads from the environment, as the workflows set it:
 #   TOKEN               a token that may push to the repository
 #   GITHUB_REPOSITORY   owner/repo, and GITHUB_SERVER_URL, Gitea's address (both set by Gitea's runner)
+#   PUBLIC_REPOSITORY   owner/repo on GitHub, where the handheld downloads each release once it's there
 #   LOCAL_GITEA_URL  optional: Gitea's address as the runner reaches it (fetch and push go there)
-#   PUBLIC_GITEA_URL    optional: Gitea's address as the handheld reaches it, for the download links;
-#                       Gitea's own address (its ROOT_URL) when not set
+#   PUBLIC_GITEA_URL    Gitea's address as the handheld reaches it, for downloads not on GitHub yet; Gitea's
+#                       own address when not set, which on a runner next to Gitea is often an internal one
 #   STORE_AUTHOR_NAME, STORE_AUTHOR_EMAIL   who the store's commits are by
 #
 # The release and the schedule can update the store at the same moment; if the push is refused because the
@@ -35,7 +36,7 @@ for attempt in 1 2 3; do
     if [ $# -ge 2 ]; then
         python3 scripts/decky_store.py add store "$1" "$2" "$GITHUB_REPOSITORY"
     fi
-    python3 scripts/decky_store.py build store "$public"
+    python3 scripts/decky_store.py build store "$public" "$PUBLIC_REPOSITORY"
 
     git -C store add -A
     if git -C store diff --cached --quiet; then

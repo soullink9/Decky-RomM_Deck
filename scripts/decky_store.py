@@ -2,8 +2,12 @@
 the official Decky store's listing, so a Decky using it as its custom store loses nothing.
 
 Used by scripts/update_decky_store.sh, from two Gitea workflows:
-    python3 scripts/decky_store.py add <store folder> <tag> <zip> <owner/repo>   (release.yml, after a release)
-    python3 scripts/decky_store.py build <store folder> <Gitea's public address> (both, after add / on a schedule)
+    python3 scripts/decky_store.py add <store folder> <tag> <zip> <owner/repo on Gitea>      (release.yml)
+    python3 scripts/decky_store.py build <store folder> <Gitea's public address> <owner/repo on GitHub>
+                                                                       (both, after add / on a schedule)
+
+The store itself is served by Gitea (GitHub can't serve a Decky store: see CONTRIBUTING.md), but the handheld
+downloads each version from its GitHub release once GitHub has it, and from Gitea's release until then.
 
 Decky's store (Decky settings → General → Plugin Store → Custom) asks for two addresses:
   <store address>            the plugin list: every plugin with its versions, newest first. Each version has the
@@ -14,15 +18,21 @@ They're plugins.json and plugins/versions.json here. A plain file host can't ans
 folder of the other), so the web server maps them; CONTRIBUTING.md has the Traefik rule.
 
 The store folder holds:
-  own.json                   this project's plugins and releases, without addresses (the source of truth)
+  own.json                   this project's plugins and releases, without addresses (the source of truth),
+                             with each version's GitHub zip hash once it's been seen there
+  README.md                  what the branch is, for anyone opening it
   official/plugins.json,     the official store's listing as last fetched, used when it can't be reached
   official/versions.json
   plugins.json, plugins/versions.json   what Decky reads, rebuilt by `build`
 
-Addresses are worked out by `build` from Gitea's public address each time, never stored, so after moving Gitea
-to another domain the next build (the scheduled one, at the latest) points every release at the new one.
+Addresses are worked out by `build` each time, never stored, so after moving Gitea to another domain the next
+build (the scheduled one, at the latest) points every Gitea link at the new one.
+
+If the official store can't be read and there's no copy from before, nothing is written: a store without the
+official plugins would take them, and their updates, away from the handheld.
 """
 import hashlib
+import http.client
 import json
 import sys
 import urllib.error
@@ -81,9 +91,18 @@ def add_release(store, tag, zip_path, repository, plugin=None):
     return entry
 
 
+USER_AGENT = "RomM-Deck-store-sync (+https://github.com/soullink9/Decky-RomM_Deck)"  # some hosts refuse Python's default
+
+
+class NoOfficialListing(Exception):
+    """The official store couldn't be reached and there's no copy from before: publishing now would leave every
+    official plugin out of the store, and with it their updates."""
+
+
 def fetch_official(store, url=OFFICIAL):
     """The official store's (list, versions), fetched now and kept in the store folder; the kept copy when the
-    official store can't be reached, so a build never drops the official plugins over a passing outage."""
+    official store can't be reached, so a build never drops the official plugins over a passing outage. Raises
+    NoOfficialListing when there's neither."""
     folder = Path(store) / "official"
     try:
         listing = _get_json(url)
@@ -95,23 +114,60 @@ def fetch_official(store, url=OFFICIAL):
         print(f"Official store: {len(listing)} plugins")
     except (OSError, ValueError, urllib.error.URLError) as e:
         listing, versions = _load(folder / "plugins.json", []), _load(folder / "versions.json", {})
+        if not listing:
+            raise NoOfficialListing(f"The official store ({url}) couldn't be read: {e}") from None
         print(f"Official store not reached ({e}); using the copy from last time ({len(listing)} plugins)")
     return listing, versions
 
 
 def _get_json(url):
     """GET a JSON document, the way Decky asks for it."""
-    request = urllib.request.Request(url, headers={"X-Decky-Version": "store-sync", "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as reply:
+    headers = {"X-Decky-Version": "store-sync", "Accept": "application/json", "User-Agent": USER_AGENT}
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as reply:
         return json.loads(reply.read())
 
 
-def build(store, public_url, official=None):
-    """Write plugins.json and plugins/versions.json: our plugins first (with download and icon addresses on
-    Gitea's public address), then the official store's, leaving out any official plugin with one of our names."""
+def _download(url):
+    """The bytes at `url`, or None if it can't be fetched (not published yet, or the host is down)."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": USER_AGENT}), timeout=120) as reply:
+            return reply.read()
+    except (OSError, ValueError, http.client.HTTPException):  # (URLError is an OSError)
+        return None
+
+
+def _github_copy(version, entry, github_repo, download):
+    """The SHA-256 of this version's zip on its GitHub release, or None if GitHub doesn't have it (yet).
+
+    Each version's GitHub zip is downloaded once and its hash kept in own.json ("github_hash"), so the store
+    lists exactly the bytes GitHub serves (Decky refuses a zip whose hash doesn't match). GitHub's release
+    workflow builds the same commit with the same reproducible build (scripts/build_zip.py), so the hash is
+    normally the same as Gitea's, but keeping GitHub's own means a difference could never break an install."""
+    if version.get("github_hash"):
+        return version["github_hash"]
+    data = download(_github_zip(github_repo, version, entry))
+    if not data:
+        return None
+    version["github_hash"] = hashlib.sha256(data).hexdigest()
+    return version["github_hash"]
+
+
+def _github_zip(github_repo, version, entry):
+    """Where a version's zip is on GitHub (the release GitHub's workflow publishes when the tag arrives)."""
+    return f"https://github.com/{github_repo}/releases/download/{version['tag']}/{entry['asset']}"
+
+
+def build(store, gitea_url, github_repo=None, official=None, download=_download):
+    """Write plugins.json and plugins/versions.json: our plugins first, then the official store's, leaving out
+    any official plugin with one of our names.
+
+    Each of our versions is downloaded from GitHub when its GitHub release has the zip (github_repo: owner/repo
+    there), and from Gitea's release otherwise: until GitHub's release is published, or if there's no GitHub
+    copy. Gitea's links use `gitea_url`, the address the handheld reaches Gitea at. Every build checks again,
+    so a version moves to GitHub's link at the next build after its GitHub release appears."""
     store = Path(store)
     official_list, official_versions = official if official is not None else fetch_official(store)
-    public_url = public_url.rstrip("/")
+    gitea_url = gitea_url.rstrip("/")
     own = _load(store / "own.json", [])
     names = {p["name"] for p in own}
     used_ids = {p.get("id") for p in official_list}
@@ -123,30 +179,52 @@ def build(store, public_url, official=None):
             continue
         while next_id in used_ids:
             next_id += 1
-        base = f"{public_url}/{entry['repository']}"
-        newest = entry["versions"][0]
+        gitea_base = f"{gitea_url}/{entry['repository']}"
         plugin_versions = []
         for version in entry["versions"]:
-            plugin_versions.append({
-                "name": version["name"], "hash": version["hash"], "created": version.get("created"),
-                # the zip on the Gitea release of that version, at Gitea's current address
-                "artifact": f"{base}/releases/download/{version['tag']}/{entry['asset']}",
-            })
+            github_hash = _github_copy(version, entry, github_repo, download) if github_repo else None
+            if github_hash:
+                artifact, sha = _github_zip(github_repo, version, entry), github_hash
+            else:
+                artifact, sha = f"{gitea_base}/releases/download/{version['tag']}/{entry['asset']}", version["hash"]
+            plugin_versions.append({"name": version["name"], "hash": sha, "created": version.get("created"),
+                                    "artifact": artifact})
+        newest = entry["versions"][0]
+        if newest.get("github_hash"):
+            image = f"https://raw.githubusercontent.com/{github_repo}/{newest['tag']}/{entry['icon']}"
+        else:
+            image = f"{gitea_base}/raw/tag/{newest['tag']}/{entry['icon']}"
         listing.append({
             "id": next_id, "name": entry["name"], "author": entry.get("author", ""),
             "description": entry.get("description", ""), "tags": entry.get("tags", []),
-            "image_url": f"{base}/raw/tag/{newest['tag']}/{entry['icon']}", "visible": True,
-            "versions": plugin_versions,
+            "image_url": image, "visible": True, "versions": plugin_versions,
         })
-        versions[entry["name"]] = [newest["name"], newest["hash"], plugin_versions[0]["artifact"]]
+        newest_listed = plugin_versions[0]
+        versions[entry["name"]] = [newest_listed["name"], newest_listed["hash"], newest_listed["artifact"]]
         used_ids.add(next_id)
 
     listing += [p for p in official_list if p.get("name") not in names]
     versions = {**{k: v for k, v in official_versions.items() if k not in names}, **versions}
+    _save(store / "own.json", own)  # with any GitHub hashes found this time, so they're fetched only once
     _save(store / "plugins.json", listing)
     _save(store / "plugins" / "versions.json", versions)
+    (store / "README.md").write_text(STORE_README)
     print(f"Store: {len(listing)} plugins, {len(own)} from this repository")
     return listing, versions
+
+
+STORE_README = """# Decky store
+
+This branch is a Decky Loader plugin store, written by the release workflows (scripts/decky_store.py on the main
+branch); don't edit it by hand. It lists RomM Deck's releases, downloaded from GitHub (or from Gitea until a
+release is on GitHub), followed by the official Decky store's plugins.
+
+- `plugins.json`: the plugin list Decky shows. `plugins/versions.json`: what Decky checks for updates.
+- `own.json`: RomM Deck's releases. `official/`: the official store's listing as last fetched.
+
+Decky reads it through a web address that answers both `<store>` and `<store>/versions`; CONTRIBUTING.md on the
+main branch explains how to serve it.
+"""
 
 
 def main():
@@ -157,8 +235,13 @@ def main():
         entry = add_release(store, tag, zip_path, repository)
         print(f"Added {entry['name']} {tag} ({len(entry['versions'])} version(s))")
     elif command == "build":
-        store, public_url = args
-        build(store, public_url)
+        store, gitea_url = args[0], args[1]
+        github_repo = args[2] if len(args) > 2 else None
+        try:
+            build(store, gitea_url, github_repo)
+        except NoOfficialListing as e:
+            sys.exit(f"{e}\nThe store was left as it was: without the official listing, a Decky using it would lose "
+                     "every official plugin and their updates. It's tried again at the next refresh.")
     else:
         sys.exit(f"unknown command {command}: use add or build")
 
