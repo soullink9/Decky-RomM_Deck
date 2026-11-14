@@ -9,8 +9,9 @@ through it. Start there if you're new to the code.
 These two come before any feature.
 
 - **Game data is never lost.** Nothing deletes a save, a save state or a game unless RomM holds an identical
-  copy first. Any change to an emulator's settings is recorded before it's made, so it can be put back, also
-  after a crash or a power loss. A change that could put a save at risk needs a test showing it doesn't.
+  copy first. Any change to an emulator's settings files is recorded before it's made, so it can be put back,
+  also after a crash or a power loss; settings given on an emulator's command line last only for that run, so
+  nothing needs putting back. A change that could put a save at risk needs a test showing it doesn't.
 - **Nobody has to type a command.** Installing, removing, turning a feature on or off and recovering from a
   crash all happen from the Quick Access panel. Turning something off puts the system back exactly as it was.
 
@@ -34,7 +35,8 @@ bin/                     the game launcher every card runs, and the motion serve
 assets/brand/            the plugin's icon (icon.svg, and the PNGs exported from it)
 docs/                    the documentation pages (the README is the front page)
 tests/                   the tests, a fake RomM server and emulator config fixtures
-scripts/                 release helpers both CI systems use: version check and notes, zip check, Gitea publish
+scripts/                 release helpers both CI systems use: version check and notes, zip check, Gitea publish,
+                         and the self-hosted Decky store
 .gitea/                  the test and release workflows for the Gitea runner (the main copy)
 .github/                 the bug-report form and GitHub's release workflow (the public copy)
 ```
@@ -59,8 +61,8 @@ You need Node.js and Python 3.10 or newer.
   fake home folder with a fake EmuDeck install and fake emulators. It downloads, launches, syncs, removes and
   restores, and checks the files on disk at each step.
 - `tests/test_motion.py`: the motion sensor, calibration and the motion server.
-- `tests/test_release.py`: the release scripts: the version check and notes, the Decky install check, and
-  publishing on Gitea against a fake Gitea server.
+- `tests/test_release.py`: the release scripts: the version check and notes, the Decky install check, the Decky
+  store (merged with a fake official store), and publishing on Gitea against a fake Gitea server.
 - `tests/test_cards.mjs`, `tests/test_current.mjs`: the frontend's Steam card handling, against a stand-in for
   Steam.
 
@@ -98,7 +100,7 @@ fix(saves): keep both copies when a save changes in both places
 refactor(library): split matching out of find_existing
 docs: describe the motion calibration steps
 test(saves): cover a sync that's cut off halfway
-chore: set version to 0.5.1-beta
+chore: set version to 0.6.0
 ```
 
 Use the module's name as the scope when a change touches one part, and leave the scope off when it touches the
@@ -106,15 +108,16 @@ repository as a whole. One logical change per commit.
 
 ## Releasing
 
-1. Change the version in `package.json` and `py_modules/romm_deck/__init__.py`. They must match (a test checks
-   this). The project is in beta (`0.x`); version 1.0 is the maintainer's decision only.
-2. Add the release to [CHANGELOG.md](CHANGELOG.md), under a heading `## X.Y.Z-beta (date)`.
+1. Change the version in `package.json` and `py_modules/romm_deck/__init__.py` (and the example in the bug-report
+   form, `.github/ISSUE_TEMPLATE/bug_report.yml`). They must match (a test checks this). The project is in beta
+   (`0.x`); leaving beta is the maintainer's decision only.
+2. Add the release to [CHANGELOG.md](CHANGELOG.md), under a heading `## X.Y.Z (date)`.
 3. Run `npm test`, and `python3.10 tests/test_plugin.py`.
 4. Commit and push to Gitea, then publish with Gitea's **Release** workflow (`.gitea/workflows/release.yml`),
    either way:
-   - **Actions → Release → Run workflow**, and enter the version without the `v` (for example `0.5.2`). It
-     creates the tag `v0.5.2` on the commit it releases.
-   - or push a version tag: `git tag v0.5.2 && git push origin v0.5.2`.
+   - **Actions → Release → Run workflow**, and enter the version without the `v` (for example `0.6.0`). It
+     creates the tag `v0.6.0` on the commit it releases.
+   - or push a version tag: `git tag v0.6.0 && git push origin v0.6.0`.
 
    The workflow checks the version matches `package.json`, the backend and `CHANGELOG.md`, runs every test (the
    backend on Python 3.10), builds `romm-deck.zip` and checks Decky can install it (`scripts/check_package.py`,
@@ -130,10 +133,22 @@ repository as a whole. One logical change per commit.
 
 The Gitea workflows use no actions (`actions/checkout` and the like download from GitHub): each job runs in a
 plain image from Docker Hub (`python:3.10-bookworm`, `node:22-bookworm`) and fetches the code from Gitea with git,
-so testing and releasing keep working when GitHub can't be reached. When the runner's jobs can't reach Gitea at its
-public address (a runner on the same Docker network as Gitea, say), set an Actions variable `LOCAL_GITEA_URL`
-to the address they can reach (`http://gitea-server:3000`); both workflows and the publish script use it.
-(Gitea refuses variable names starting with `GITEA_` or `GITHUB_`, hence `LOCAL_GITEA_URL` and `PUBLIC_GITEA_URL`.)
+so testing and releasing keep working when GitHub can't be reached.
+
+### Settings for the Gitea workflows
+
+Nothing secret is kept in the repository. The workflows read these from Gitea (repository, organisation or user
+Settings → Actions); all of them are optional:
+
+| Name | Kind | What it's for |
+|---|---|---|
+| `LOCAL_GITEA_URL` | variable | Gitea's address as the runner's jobs reach it, when that isn't its public address (a runner on the same Docker network as Gitea, say: `http://gitea-server:3000`). Used to fetch code, publish and update the store. |
+| `PUBLIC_GITEA_URL` | variable | Gitea's address as the handheld reaches it, for the Decky store's download links. Not needed when Gitea's own ROOT_URL is already that address. |
+| `RELEASE_TOKEN` | secret | A token with write access to the repository, if the job's own token isn't allowed to create releases or push the `store` branch. |
+
+Gitea refuses variable and secret names starting with `GITEA_` or `GITHUB_`, hence these names. `GITEA_TOKEN`, the
+job's own token, is provided by Gitea itself. The store's commits are made as the name and email in
+`STORE_AUTHOR_NAME` and `STORE_AUTHOR_EMAIL` at the top of `release.yml` and `store.yml`: a fork changes those.
 
 ## A Decky store on Gitea
 

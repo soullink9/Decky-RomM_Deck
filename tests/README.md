@@ -22,8 +22,9 @@ Helpers:
 
 `test_plugin.py` builds a throwaway fake home folder (EmuDeck's layout, fake emulators that write save files, a
 fake `systemctl`), installs the plugin into it as Decky would, and runs downloads, launches, syncs, conflicts,
-removals and presets, checking the files on disk at each step. The folder is deleted afterwards, or kept and
-printed when something fails.
+removals and presets, checking the files on disk at each step. For the Wii preset's in-game check it starts
+stand-in processes named like Dolphin and Steam, holding a fake Wii Remote sensor open. The folder is deleted
+afterwards, or kept and printed when something fails.
 
 What this does and does not prove:
 

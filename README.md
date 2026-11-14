@@ -64,6 +64,8 @@ commands.
 | [`bin/`](bin) | The game launcher every card runs, and the motion server. |
 | [`docs/`](docs) | The documentation pages above. |
 | [`tests/`](tests) | The tests, with a fake RomM server. |
+| [`scripts/`](scripts), [`.gitea/`](.gitea), [`.github/`](.github) | Building, checking and publishing releases. |
+| [`assets/brand/`](assets/brand) | The plugin's icon. |
 
 New to the code? [ARCHITECTURE.md](ARCHITECTURE.md) explains how the plugin is built and how data flows
 through it.
@@ -88,6 +90,10 @@ Work from other people this project uses or learned from:
 - **[EmuDeck](https://github.com/dragoonDorise/EmuDeck)**: the plugin uses EmuDeck's folders, launcher
   scripts, Steam ROM Manager collection names and emulator settings. The test fixtures are short excerpts
   of EmuDeck's default emulator configuration.
+- **[Dolphin](https://github.com/dolphin-emu/dolphin)**: its source documents the command-line settings and
+  Wii Remote messages the real Wii Remote preset uses.
+- **[Decky Plugin Store](https://github.com/SteamDeckHomebrew/decky-plugin-store)** (Steam Deck Homebrew): the
+  store format the release scripts write for a self-hosted Decky store.
 - **[Material Design Icons](https://github.com/google/material-design-icons)** (Google, Apache 2.0): the
   icons in the panel.
 

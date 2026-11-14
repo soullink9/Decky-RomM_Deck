@@ -66,7 +66,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `py_modules/romm_deck/autoload.py` | Turning off "load the last save state on start" in every emulator |
 | `py_modules/romm_deck/metadata.py` | RomM's data shaped for display: covers, Steam page details, links, Activity, screenshots |
 | `py_modules/romm_deck/ini.py` | Editing one key in an INI file without changing anything else in it |
-| `py_modules/romm_deck/procs.py` | Recognising a process we started, safely, by pid and start time |
+| `py_modules/romm_deck/procs.py` | Recognising a process we started, safely, by pid and start time; finding a game's processes, their command lines and the files they have open |
 | `bin/romm_launch.py` | The game launcher (see above) |
 | `bin/romm_motion.py` | The motion server process a preset starts for one game |
 | `src/index.tsx` | The Quick Access panel and the plugin's frontend entry point |
@@ -80,10 +80,10 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `docs/` | The user documentation: the README is the front page, every other page sits in here |
 | `.github/ISSUE_TEMPLATE/` | The bug-report form |
 | `.gitea/workflows/test.yml` | Runs every test on each push to Gitea (backend on Python 3.10, frontend and zip on Node 22), with no actions downloaded from GitHub |
-| `.gitea/workflows/release.yml` | Publishes a release on Gitea (Run workflow button, or a pushed version tag); its tag then reaches GitHub through the push mirror |
+| `.gitea/workflows/release.yml` | Publishes a release on Gitea (Run workflow button, or a pushed version tag) and adds it to the Decky store; its tag then reaches GitHub through the push mirror |
+| `.gitea/workflows/store.yml` | Every six hours: refreshes the Decky store on the `store` branch with the official listing and current links |
 | `.github/workflows/release.yml` | Publishes the same release on GitHub when a version tag arrives there (or from its own Run workflow button) |
 | `scripts/release_notes.py` | Shared by both release workflows: checks the version, gives the release's title, writes the notes (with the zip's install-from-URL address on GitHub) from CHANGELOG.md |
-| `.gitea/workflows/store.yml` | Every six hours: refreshes the Decky store on the `store` branch with the official listing and current links |
 | `scripts/update_decky_store.sh` | Fetches the `store` branch, updates it (a release, or a refresh) and pushes it back, retrying if it moved meanwhile |
 | `scripts/decky_store.py` | Builds the Decky store files: RomM Deck's releases (`own.json`, links worked out from `PUBLIC_GITEA_URL`) merged with the official store's listing, into `plugins.json` and `plugins/versions.json` |
 | `scripts/publish_gitea_release.py` | Creates or updates the Gitea release and uploads the zip, through Gitea's API (standard library only) |
@@ -133,8 +133,9 @@ sequenceDiagram
     L->>R: pull newer saves (saves.sync "pull")
     L->>L: apply controller preset, if on (presets.apply)
     L->>L: snapshot the save folders
-    L->>E: start the emulator
+    L->>E: start the emulator (with a preset's command-line settings)
     L->>L: write session-<rom>.json (launcher and emulator pids)
+    L-->>E: in the background: check the preset reached it (presets.check_running)
     Note over E: playing
     Steam-->>E: "Exit game" (a close signal to every process of the game)
     E->>L: exits
@@ -212,11 +213,14 @@ A preset changes a few emulator settings for the length of a game (`presets.appl
   Wiimote.WiimoteN.Source=2`, because EmuDeck's launcher rewrites `[WiimoteN] Source` in WiimoteNew.ini (its
   controller AutoMap) just before starting Dolphin. A taken-over card only gets them when it runs that same
   EmuDeck launcher.
-- A preset can also **check** that it took effect (`check(emulator_pid)` in the preset,
+- A preset can also **check** that it took effect (`check(emulator_pid, log_file, log_start)` in the preset,
   `presets.check_running`). The launcher runs it in a background thread while the game runs, so it never holds
   the game up. The Wii check finds Dolphin among the game's processes (`procs.descendants`), reads Dolphin's own
   command line for the `-C` settings, and lists which programs have the Wii Remote sensor's device files open
-  (`procs.holding_open`). It reports in a popup, on the game page and in the launch log, and changes nothing.
+  (`procs.holding_open`). The preset also switches on Dolphin's Wii Remote messages for that run (`-C
+  Logger.…`), which Dolphin writes to the launch log; the check reads them back from where this game's part of
+  the log starts (`_dolphin_says`) and adds what they mean. It reports in a popup, on the game page and in the
+  launch log, and changes nothing.
 - **Motion** presets need the handheld's motion to reach the emulator. Emulators read motion over the
   DSU protocol (UDP port 26760). EmuDeck's own motion server only recognises a real Steam Deck, so the
   plugin has its own (`motion.serve`). It reads the sensor straight from the kernel (IIO), or, when
@@ -252,6 +256,30 @@ data is over 15 minutes old, and so does closing the game. Screenshots are copie
 `~/homebrew/data/romm-deck/shots/`, which Decky serves at `http://localhost:1337/plugins/RomM Deck/data/`:
 Steam's pages can't load pictures from a plain-http or self-signed RomM, but they can load from Decky.
 
+### Releases and the self-hosted store
+
+The main copy of the repository is on a self-hosted Gitea, which push-mirrors to the public copy on GitHub.
+
+```mermaid
+flowchart LR
+    Push["push to Gitea"] --> Test["test.yml<br/>every suite"]
+    Run["Release → Run workflow<br/>(or a version tag)"] --> Rel["release.yml<br/>check version, test, build zip"]
+    Rel --> GRel["Gitea release<br/>publish_gitea_release.py"]
+    Rel --> Store["store branch<br/>update_decky_store.sh"]
+    Timer["every 6 hours"] --> SY["store.yml"] --> Store
+    Official[("official Decky store")] -.-> Store
+    GRel -- "push mirror (tag)" --> GH["GitHub release.yml<br/>same checks"] --> GHRel["GitHub release"]
+```
+
+- No Gitea workflow uses actions (they download from GitHub). Jobs run in plain images from Docker Hub and fetch
+  the code with git, so testing and releasing keep working when GitHub can't be reached.
+- `scripts/release_notes.py` and `scripts/check_package.py` are shared by both release workflows, so a release
+  is checked and described the same way on both. The notes always point at GitHub, the copy people install from.
+- The store (`scripts/decky_store.py`) keeps only RomM Deck's versions and zip hashes (`own.json`) and works the
+  download links out on every build from `PUBLIC_GITEA_URL`, so a move to a new domain needs only that variable
+  changed. Decky asks for `<store>` and `<store>/versions`; the web server maps both to files on the `store`
+  branch ([CONTRIBUTING.md](CONTRIBUTING.md#a-decky-store-on-gitea)).
+
 ## State on disk
 
 All in `~/homebrew/settings/romm-deck/` unless noted.
@@ -267,9 +295,11 @@ All in `~/homebrew/settings/romm-deck/` unless noted.
 | `controller-backup.json` | Change records of the preset applied right now | launcher |
 | `controller-status.json` | How the last game with a preset went | launcher |
 | `motion-calibration.json` | The motion sensor's axes | backend |
+| `motion-ready.json` | Whether the motion server started, for the game's popup | motion server |
 | `steam-details.json` | RomM's data for Steam pages, with when it was fetched | backend |
 | `notify/*.json` | Popups waiting to be shown | launcher |
 | `covers/` | Small cover art for the panel | backend |
+| `*.lock` | Empty files held while a store is edited, so two processes never write it at once | backend, launcher |
 | `~/homebrew/data/romm-deck/shots/` | Screenshot copies for Steam pages | backend |
 | `~/homebrew/logs/romm-deck/` | `launch.log`, `motion.log`, `removed.log` | launcher, backend |
 

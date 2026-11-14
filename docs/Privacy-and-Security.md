@@ -15,6 +15,10 @@ Like any web request, these see your public IP address (your RomM server sees yo
 network). Nothing else about the handheld, its games or its sensors is sent anywhere. The motion server only
 listens on the handheld itself (`127.0.0.1`).
 
+During a Wii game with **Use my real Wii Remotes** on, the plugin looks at the game's own processes on the
+handheld: Dolphin's command line, and which programs have the Wii Remote sensor open (only programs running as
+you). What it finds goes into a popup and `launch.log`, and nowhere else.
+
 ## The RomM token
 
 - It's stored in `~/homebrew/settings/romm-deck/settings.json`, in plain text, like other Decky plugins'
@@ -50,6 +54,9 @@ game, and every file it deletes is listed in `~/homebrew/logs/romm-deck/removed.
 | `~/homebrew/settings/romm-deck/motion-calibration.json` | The motion sensor's calibration |
 | `~/homebrew/settings/romm-deck/controller-status.json` | How the last game with a controller preset went |
 | `~/homebrew/settings/romm-deck/controller-backup.json`, `session-*.json` | A preset or game in progress (emptied or removed after the game) |
+| `~/homebrew/settings/romm-deck/motion-ready.json` | Whether the motion server started, for the game's popup |
+| `~/homebrew/settings/romm-deck/notify/` | Popups waiting to be shown in Game Mode (removed once shown) |
+| `~/homebrew/settings/romm-deck/*.lock` | Keep two syncs or saves from writing the same file at once (empty) |
 | `~/homebrew/settings/romm-deck/covers/` | Small cover art for the panel (safe to delete) |
 | `~/homebrew/data/romm-deck/shots/` | Copies of RomM's screenshots for Steam pages (safe to delete) |
 | `~/homebrew/logs/romm-deck/` | The logs (see [Troubleshooting](Troubleshooting.md#logs)) |

@@ -56,40 +56,35 @@ If another program is using the motion port, the popup says so too. See
 **Wii: the game uses an emulated Wii Remote, not my real ones.**
 "Use my real Wii Remotes" works for Wii games started from a RomM Deck card (or an EmuDeck card RomM Deck has
 taken over, as long as it runs EmuDeck's Dolphin launcher), and only while it's turned on in that game's page.
-In version 0.5.0 and earlier, EmuDeck's launcher undid it every time; update RomM Deck. The popup when the game starts, and the line
-under the preset on the game page, say what Dolphin can see:
+Turning it on or off during a game takes effect the next time the game starts. There are two popups to go by.
+
+When the game starts, *Controller preset on* says what's plugged in. No such popup means the preset wasn't used
+for that launch.
 
 - *a DolphinBar has to be in mode 4*: no Wii Remote sensor in Wii Remote mode is plugged in. On a Mayflash
-  DolphinBar, press its mode button until the LED for mode 4 lights. In modes 1 to 3 the DolphinBar turns the
-  remote into a mouse, keyboard or gamepad, so the game gets an emulated remote moved by it instead.
+  DolphinBar, press its mode button until the LED for mode 4 lights. In modes 1 to 3 it turns the remote into a
+  mouse, keyboard or gamepad, which then moves an emulated remote.
 - *on the USB sensor*: Dolphin can use the DolphinBar; press 1+2 (or the DolphinBar's sync button) on each remote.
-- *Dolphin isn't allowed to open the Wii Remote sensor on USB*: the system doesn't give apps access to the
-  DolphinBar's Wii Remote slots, so remotes on it can't connect. Remotes over Bluetooth still can.
+- *Dolphin isn't allowed to open the Wii Remote sensor on USB*: the system doesn't let apps use the DolphinBar's
+  Wii Remote slots, so remotes on it can't connect. Remotes over Bluetooth still can.
 
-If there's no "Controller preset on" popup when the game starts, the preset wasn't used for that launch.
+About half a minute in, a second popup says what RomM Deck found in the Dolphin that's actually running, then
+what Dolphin itself reported (the preset switches on Dolphin's Wii Remote messages for that game):
 
-About half a minute into the game, a second popup says what RomM Deck found in the Dolphin that's running:
+| The popup says | What it means |
+|---|---|
+| *…and has the USB sensor open* | Dolphin is set up and using the DolphinBar |
+| *…hasn't opened the USB sensor yet* | Dolphin is set up but hasn't connected to the DolphinBar: press 1+2, check mode 4 |
+| *…but steam also has the Wii Remote sensor open* | Another program is using the DolphinBar too and can take the remotes' signals first |
+| *…the Wii Remote sensor's device file can't be opened* | The system has hidden the DolphinBar from apps, or doesn't allow them to use it |
+| *Dolphin was started without the real Wii Remote setting* | The card started Dolphin some other way than EmuDeck's launcher: start it from its RomM Deck card |
+| *Dolphin found a Wii Remote* | Dolphin has a remote; press 1+2 if the game doesn't respond yet |
+| *Dolphin hasn't seen a Wii Remote yet* | No remote has answered: press 1+2 (or the sync button), check mode 4 |
+| *Dolphin isn't allowed to open the Wii Remote sensor* | Dolphin itself was refused the DolphinBar |
+| *The remote is paired with the system's Bluetooth* | Linux's own Wii Remote driver has it: forget it in Bluetooth settings |
 
-- *Dolphin is using real Wii Remotes and has the USB sensor open*: everything is in place; press 1+2 on a remote.
-- *…hasn't opened the USB sensor yet*: Dolphin is set up but hasn't connected to the sensor; press 1+2 on a
-  remote or the sensor's sync button, and check the DolphinBar is in mode 4.
-- *…but steam also has the Wii Remote sensor open*: another program is using the sensor too, and can take the
-  remotes' signals before Dolphin does.
-- *Dolphin was started without the real Wii Remote setting*: the card started Dolphin some other way than
-  EmuDeck's Dolphin launcher, so the setting couldn't be passed on. Start the game from its RomM Deck card.
-
-The popup then adds what Dolphin itself reported about real Wii Remotes (the preset switches on Dolphin's Wii
-Remote messages for that game):
-
-- *Dolphin found a Wii Remote*: Dolphin has a remote. If the game still doesn't respond to it, press 1+2.
-- *Dolphin hasn't seen a Wii Remote yet*: Dolphin is looking but no remote has answered: press 1+2 on a remote
-  (or the DolphinBar's sync button) and check the DolphinBar is in mode 4.
-- *Dolphin isn't allowed to open the Wii Remote sensor*: the system keeps Dolphin from the DolphinBar.
-- *The remote is paired with the system's Bluetooth*: Linux's own Wii Remote driver has it, and Dolphin can't
-  share it. Forget the remote in the Bluetooth settings and connect it through the DolphinBar or press 1+2.
-
-Turning the preset on or off during a game takes effect the next time the game starts. The launch log (Decky's
-logs for RomM Deck) lists Dolphin's command line and which programs had each sensor slot open.
+`launch.log` has the details: Dolphin's command line, which programs had each DolphinBar slot open, and every
+Wii Remote message Dolphin wrote.
 
 **Installing from a URL stops at "Parsing zip file".**
 Decky got something that isn't the plugin's zip. Use the address in
@@ -114,6 +109,9 @@ If RomM's details, buttons or Activity don't show on a game's page:
 
 - **Gyro aiming** can feel slow or reversed in some games. See
   [Controller Presets](Controller-Presets.md#known-limitations).
+- **Real Wii Remotes from Game Mode**: on some setups Dolphin still uses an emulated remote when the game is
+  started from Steam, while choosing "Real Wii Remote" in Dolphin's own window works. The cause is still being
+  found; the popups above and `launch.log` help pin it down.
 - **Steam updates** can change Steam's internal page code. The Steam page features then fall back to Steam's
   normal page until the plugin is updated.
 

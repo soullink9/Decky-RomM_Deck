@@ -1,57 +1,16 @@
 # Changelog
 
-## 0.5.2 (2026-11-08)
-
-### Controller presets
-
-- "Use my real Wii Remotes" now checks the Dolphin that actually started, about half a minute into the game,
-  and says what it found in a second popup and on the game page: whether Dolphin got the real Wii Remote
-  setting, whether it has the Wii Remote sensor open, and whether another program (Steam, say) has it open too.
-  It also switches on Dolphin's own Wii Remote messages for that game and adds what Dolphin reported (found a
-  remote, not allowed to open the sensor, remote held by the system's Bluetooth driver). The details go into the
-  launch log.
-- Turning a preset on or off while a game runs now says it takes effect from the next launch: a running
-  emulator has already read its settings.
-
-### Install
-
-- A Decky store on Gitea: the repository's `store` branch lists every RomM Deck release together with the official
-  Decky store's plugins (refreshed every six hours), so Decky can use it as its custom store (Decky settings →
-  Plugin Store → Custom) without losing any official plugin or update. Links follow the Actions variable
-  `PUBLIC_GITEA_URL`, so moving Gitea to a new domain only needs that changed.
-  [CONTRIBUTING](CONTRIBUTING.md#a-decky-store-on-gitea) has the web server rule it needs.
-
-### Repository
-
-- Gitea is the main copy: its runner tests every push and publishes releases
-  (`.gitea/workflows/`), with nothing downloaded from GitHub, so it keeps working when GitHub can't be reached.
-  Gitea push-mirrors to GitHub, and a version tag arriving there publishes the same release on GitHub.
-- The release helpers moved to `scripts/` (used by both), and `package.sh` zips with Python, so a runner needs
-  nothing beyond Python and Node.
-
-## 0.5.1 (2026-11-08)
-
-### Install
-
-- Install from a link: each release's notes give the zip's download address for Decky's **Install plugin
-  from URL**, and the [installation guide](docs/Installation.md) has one that always gets the latest release.
-- Every `romm-deck.zip` is checked the way Decky reads it before it's published, so a release can't stop at
-  "Parsing zip file".
-
-### Controller presets
-
-- Fixed "Use my real Wii Remotes": Dolphin still used emulated remotes. EmuDeck's launcher sets every Wii
-  Remote back to emulated in Dolphin's settings just before Dolphin starts, undoing the preset. The preset now
-  tells Dolphin on its command line instead, which wins over its settings files and changes nothing in them.
-
-### Repository
-
-- A brand icon for RomM Deck, in `assets/brand/`.
-
-## 0.5.0 (2026-11-01)
+## 0.5.2 (2026-11-13)
 
 Initial release: the first public beta of RomM Deck, a Decky Loader plugin for RomM and EmuDeck. The
 [documentation](README.md#documentation) covers every feature below.
+
+### Install
+
+- Install from a link: Decky's **Install plugin from URL** with the address in the
+  [installation guide](docs/Installation.md), which always gets the newest release, or the address in a
+  release's notes for that version.
+- Every `romm-deck.zip` is checked the way Decky's installer reads it before it's published.
 
 ### Library and downloads
 
@@ -95,9 +54,12 @@ Initial release: the first public beta of RomM Deck, a Decky Loader plugin for R
 - Motion (gyro and tilt) from the ROG Ally / Xbox Ally's own sensor for Switch (Ryujinx), Wii U (Cemu)
   and 3DS (Azahar), served to the emulator while the game runs, with a one-time calibration.
 - "Use my real Wii Remotes" for Wii (Dolphin), on any device, over Bluetooth or a Mayflash DolphinBar in mode 4.
-  The popup says whether Dolphin can use a DolphinBar, and when it needs switching to mode 4.
-- Every setting a preset changes is put back after the game, also after a crash, and changes you
-  make in the emulator meanwhile are kept.
+  The setting goes on Dolphin's command line, which wins over EmuDeck's controller auto-mapping and changes
+  nothing in Dolphin's files. A popup when the game starts says whether a Wii Remote sensor is usable, and a
+  second one, half a minute in, says what the running Dolphin has: the setting, the sensor, another program
+  holding it, and what Dolphin itself reported about Wii Remotes.
+- Every setting a preset changes in a file is put back after the game, also after a crash, and changes you
+  make in the emulator meanwhile are kept. Switching a preset during a game takes effect at the next launch.
 
 ### Panel
 
@@ -108,16 +70,21 @@ Initial release: the first public beta of RomM Deck, a Decky Loader plugin for R
 
 - Documentation under `docs/`, an [architecture overview](ARCHITECTURE.md), a [contributor guide](CONTRIBUTING.md)
   and a [code of conduct](CODE_OF_CONDUCT.md).
-- Tests that run without Steam or Decky: the whole backend against a fake RomM server, the motion server, and the
-  frontend's Steam card handling.
-- A bug-report form, and a release workflow: enter a version (or push a version tag) and it tests, builds and
-  publishes the release.
+- Tests that run without Steam or Decky: the whole backend against a fake RomM server, the motion server, the
+  frontend's Steam card handling, and the release scripts.
+- Self-hosted first: a Gitea runner tests every push and publishes releases with nothing downloaded from GitHub
+  (`.gitea/workflows/`), and the same release is published on GitHub when its tag arrives there.
+- A Decky plugin store on the `store` branch: every release plus the official Decky store's listing, refreshed
+  every six hours, for a Decky that uses a self-hosted store. See
+  [CONTRIBUTING](CONTRIBUTING.md#a-decky-store-on-gitea).
+- A bug-report form and a brand icon (`assets/brand/`).
 
 ### Known limitations
 
 - Ally motion aiming can feel slow or reversed in some games; the axis mapping for handheld
   orientation is still being worked on.
+- Real Wii Remotes started from Game Mode don't connect on some setups, although choosing "Real Wii Remote" in
+  Dolphin's own window works; the popups and `launch.log` help find out why.
 - Steam game page features rely on Steam's internal UI, which can change with a Steam update; the
   plugin falls back to Steam's own page if anything doesn't match.
 - RetroAchievements unlocks need a RomM API token with the `me.read` permission.
-

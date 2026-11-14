@@ -32,8 +32,8 @@ check(zip_url in notes and "## What's in it" in notes, "notes give the zip's own
 check(not re.search(r"\]\((?!https?:|#)", notes), "every link in the notes is absolute, so it works on the release page")
 code, _, err = notes_script("v9.9.9")
 check(code != 0 and "isn't the plugin's version" in err, f"another version: refused ({err.strip()})")
-check(release_notes.release_title("0.5.0-beta") == "V0.5.0 Beta" and release_notes.release_title("1.0.2") == "V1.0.2",
-      "release titles: V0.5.0 Beta, V1.0.2")
+check(release_notes.release_title("0.5.0-beta") == "V0.5.0 Beta" and release_notes.release_title("0.6.0") == "V0.6.0",
+      "release titles: V0.5.0 Beta, V0.6.0")
 
 # --- check_package.py: what Decky's installer accepts ------------------------------------------------------
 def make_zip(name, files):

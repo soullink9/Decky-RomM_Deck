@@ -38,8 +38,12 @@ before Dolphin starts (its controller AutoMap). Settings given on the command li
 only until Dolphin closes, so there's nothing to put back.
 
 Remotes can connect over Bluetooth or through a USB Wii Remote sensor such as a Mayflash DolphinBar (on the
-handheld or its dock). A DolphinBar has to be in **mode 4**, its Wii Remote mode. When the game starts, the popup
-says whether Dolphin can use a sensor on USB; [Troubleshooting](Troubleshooting.md) explains each message.
+handheld or its dock). A DolphinBar has to be in **mode 4**, its Wii Remote mode.
+
+Two popups say how it went: one when the game starts (whether a Wii Remote sensor is plugged in and usable),
+and one about half a minute in, after RomM Deck has looked at the Dolphin that's actually running: whether it
+got the setting, whether it has the sensor open, whether another program has it open too, and what Dolphin
+itself reported about Wii Remotes. [Troubleshooting](Troubleshooting.md) explains each message.
 
 ## How your settings are kept safe
 
@@ -50,7 +54,8 @@ says whether Dolphin can use a sensor on USB; [Troubleshooting](Troubleshooting.
 - A setting is only put back if it still has the preset's value: anything you change in the emulator during the
   game is kept.
 - Only the one line changes in each settings file; the rest of the file stays exactly as it was.
-- Turning a preset off puts everything back immediately.
+- Turning a preset off puts everything back immediately. During a game, turning one on or off takes effect the
+  next time the game starts: the running emulator has already read its settings.
 - If EmuDeck's own motion server is installed and running, it's paused for the game (it would hold the motion
   port) and started again afterwards.
 
@@ -63,3 +68,6 @@ and off.
   reported for aiming is still being worked on. If a game lets you turn off motion aiming, Steam Input's gyro
   (as a joystick or mouse) is a good alternative for the camera meanwhile.
 - The Ally motion presets are offered only on ASUS ROG Ally and Xbox Ally models.
+- **Real Wii Remotes from Game Mode** don't connect on some setups, although choosing "Real Wii Remote" in
+  Dolphin's own window works. The cause is still being found; see
+  [Troubleshooting](Troubleshooting.md#common-questions).

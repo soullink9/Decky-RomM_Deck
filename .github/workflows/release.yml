@@ -2,9 +2,9 @@
 # (.gitea/workflows/release.yml does the same on Gitea; both use the scripts in scripts/.)
 #
 # Two ways to start it:
-#   - Actions tab → Release → Run workflow, and enter the version (0.5.1-beta). This also creates the tag
-#     (v0.5.1-beta) on the branch you run it from.
-#   - Push a version tag:  git tag v0.5.1-beta && git push origin v0.5.1-beta. A tag pushed here by Gitea's push
+#   - Actions tab → Release → Run workflow, and enter the version (0.6.0). This also creates the tag
+#     (v0.6.0) on the branch you run it from.
+#   - Push a version tag:  git tag v0.6.0 && git push origin v0.6.0. A tag pushed here by Gitea's push
 #     mirror (after a release on Gitea) starts it too, so each release appears on both.
 # It refuses to publish unless package.json, the backend and CHANGELOG.md are at that version and every test
 # passes, so a release always matches the code in it. A version with a suffix (-beta) is a pre-release.
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, without the v (for example 0.5.1-beta)"
+        description: "Version to release, without the v (for example 0.6.0)"
         required: true
 
 permissions:
