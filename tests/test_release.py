@@ -174,7 +174,10 @@ server = ThreadingHTTPServer(("127.0.0.1", 0), FakeGitea)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 gitea_url = f"http://127.0.0.1:{server.server_port}"
 zip_path = make_zip("romm-deck.zip", good)
-env = {**os.environ, "GITHUB_SERVER_URL": gitea_url, "GITHUB_REPOSITORY": "owner/decky-romm_deck", "RELEASE_TOKEN": "secret"}
+# A real runner sets the workflow's own Gitea addresses for every step; left in, they'd send these calls to the
+# real Gitea instead of the fake one. The tests set them themselves where they're needed.
+outside = {k: v for k, v in os.environ.items() if k not in ("LOCAL_GITEA_URL", "PUBLIC_GITEA_URL")}
+env = {**outside, "GITHUB_SERVER_URL": gitea_url, "GITHUB_REPOSITORY": "owner/decky-romm_deck", "RELEASE_TOKEN": "secret"}
 
 def run_publish(title, extra_env=None):
     return subprocess.run([sys.executable, str(ROOT / "scripts/publish_gitea_release.py"), "v0.5.2", "abc123", title,
@@ -192,14 +195,14 @@ check(len(assets) == 1 and assets[0]["name"] == "romm-deck.zip"
 check(all(auth == "token secret" for _, _, auth in FakeGitea.calls), "every call carries the token")
 
 result = run_publish("V0.5.2 again")
-check(result.returncode == 0 and len(FakeGitea.releases) == 1 and release["name"] == "V0.5.2 again"
+check(result.returncode == 0 and len(FakeGitea.releases) == 1 and release.get("name") == "V0.5.2 again"
       and [a["name"] for a in release["assets"]] == ["romm-deck.zip"],
       "run again for the same tag: the release is updated and its zip replaced, not doubled")
 
 result = run_publish("V0.5.2", {"RELEASE_TOKEN": "wrong"})
 check(result.returncode != 0 and "401" in result.stderr, f"a token Gitea refuses: stops with Gitea's answer ({result.stderr.strip()[:80]})")
 result = run_publish("V0.5.2 inside", {"GITHUB_SERVER_URL": "https://gitea.example.invalid", "LOCAL_GITEA_URL": gitea_url})
-check(result.returncode == 0 and release["name"] == "V0.5.2 inside",
+check(result.returncode == 0 and release.get("name") == "V0.5.2 inside",
       "public address unreachable from the runner: LOCAL_GITEA_URL is used instead")
 result = run_publish("V0.5.2", {"RELEASE_TOKEN": ""})
 check(result.returncode != 0 and "RELEASE_TOKEN" in result.stderr, "no token: stops and says which setting is missing")
