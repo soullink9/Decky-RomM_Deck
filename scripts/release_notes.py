@@ -14,7 +14,7 @@ The notes always point at the public copy on GitHub, also in a release made on G
    the repository; they're made absolute (at the tag) so they work on the release page.
 
 Prints, for the workflow: "prerelease=true" or "prerelease=false" (versions with a suffix, like 0.5.0-beta,
-are published as pre-releases), and "title=..." (v0.5.0-beta -> "V0.5.0 Beta", v1.0.2 -> "V1.0.2").
+are published as pre-releases), and "title=..." (v0.5.0-beta -> "V0.5.0 Beta", v0.6.0 -> "V0.6.0").
 Exits non-zero, with the reason, when the release must not go ahead.
 """
 import json
@@ -50,6 +50,7 @@ def changelog_section(version):
 def absolute_links(text, repo, tag):
     """Relative links (README.md#documentation, ARCHITECTURE.md...) as links to the repository at the tag."""
     def fix(m):
+        """One markdown link: kept if it's already absolute or within the page, else pointed at the tag."""
         target = m[2]
         if re.match(r"^[a-z]+:", target) or target.startswith("#"):
             return m[0]  # already absolute, or a link within the page
@@ -63,7 +64,7 @@ def absolute_links(text, repo, tag):
 
 
 def release_title(version):
-    """The release's name: 0.5.0-beta -> "V0.5.0 Beta", 1.0.2 -> "V1.0.2"."""
+    """The release's name: 0.5.0-beta -> "V0.5.0 Beta", 0.6.0 -> "V0.6.0"."""
     number, _, suffix = version.partition("-")
     return f"V{number} {suffix.capitalize()}" if suffix else f"V{number}"
 

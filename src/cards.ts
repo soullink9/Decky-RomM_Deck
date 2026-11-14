@@ -2,7 +2,9 @@
 // so they start through RomM Deck's launcher, which syncs saves before and after playing.
 import { steamApps, callable, sleep } from "./decky";
 
+/** A card's command as the backend gives it (Python's names). */
 type Command = { exe: string; start_dir: string; options: string };
+/** A card's command as Steam reports it for an existing card. */
 type Details = { exe: string; options: string; startDir: string };
 
 const getCard = callable<[romId: number], (Command & { name: string; collections: string[] }) | null>("card");

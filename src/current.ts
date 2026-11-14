@@ -4,6 +4,7 @@ import { appDetails } from "./cards";
 
 const matchApp = callable<[appId: number, exe: string, options: string], number | null>("match_app");
 
+/** The game the panel should open on: its RomM id, its Steam card, and whether it's running right now. */
 export type Current = { romId: number; appId: number; playing: boolean };
 
 /** The Steam game page that's open, and the game that's running (app ids, or null). */

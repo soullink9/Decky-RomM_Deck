@@ -30,6 +30,7 @@ class Gitea:
     """The few calls of Gitea's API a release needs."""
 
     def __init__(self, server, repository, token):
+        """Talk to the Gitea at `server` about `repository` (owner/repo), signed in with `token`."""
         self.base = f"{server.rstrip('/')}/api/v1/repos/{repository}"
         self.token = token
 
