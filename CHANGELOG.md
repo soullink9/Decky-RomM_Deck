@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.2 (2026-11-13)
+## 0.5.3 (2026-11-13)
 
 Initial release: the first public beta of RomM Deck, a Decky Loader plugin for RomM and EmuDeck. The
 [documentation](README.md#documentation) covers every feature below.

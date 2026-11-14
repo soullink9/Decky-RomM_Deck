@@ -7,7 +7,7 @@ body:
     attributes:
       label: Versions
       description: RomM Deck ("version" in package.json, or the Decky plugin list), Decky Loader, RomM, and your OS.
-      placeholder: RomM Deck 0.5.2, Decky Loader 3.x, RomM 5.4.1, Bazzite
+      placeholder: RomM Deck 0.5.3, Decky Loader 3.x, RomM 5.4.1, Bazzite
     validations:
       required: true
   - type: input
