@@ -13,8 +13,12 @@ import { currentGame } from "./current";
 import { Icon, Label, Cover, GameRow, Status, ago, GREEN, AMBER, GREY } from "./ui";
 import { start as startSteamPages, refresh as refreshSteamPages, setEnabled as showOnSteamPages } from "./steampage";
 
+// The shapes the backend's methods return (see main.py), as the panel uses them.
+/** A platform or collection to browse ("kind" says which, and for collections, smart or regular). */
 type Collection = { kind: string; id: number; name: string; count: number };
+/** A game in a list. */
 type Rom = { id: number; name: string; platform: string; installed: boolean; cover?: string };
+/** A game's own page: everything the panel shows about it, including its controller preset. */
 type Game = Rom & {
   platform_id: number; size_mb: number; playable: boolean; app_id: number | null; downloading: number | null;
   extras: number; extras_on_pc: number; extras_dir: string;
@@ -22,14 +26,18 @@ type Game = Rom & {
   about: { developers: string[]; release_date: number | null };
   preset: { platform: string; label: string; about: string; motion: boolean; on: boolean; calibrated: boolean; last: string } | null;
 };
+/** Where the panel is: each page remembers the one to go back to. */
 type Page =
   | { page: "home" }
   | { page: "pick"; kind: "platforms" | "collections" }
   | { page: "list"; title: string; kind: string; id: number | string; back: Page }
   | { page: "game"; id: number; back: Page; playing?: boolean; appId?: number; auto?: boolean };
+/** What a backend method returns when it failed. */
 type Err = { error: string };
+/** A download in progress, as the home page lists it. */
 type Download = { id: number; name: string; percent: number };
 type GamePageView = Extract<Page, { page: "game" }>;
+/** A save sync's outcome: files sent up and down, saves from other emulators left alone, files on RomM. */
 type SavesResult = { ok: boolean; error?: string; up?: number; down?: number; other?: string[]; on_romm?: number };
 
 /** The backend's methods (main.py), typed. Names match the Python methods. */
@@ -266,7 +274,7 @@ function AutoloadSection() {
       <ExtrasFolder />
       <PanelSectionRow>
         <ButtonItem layout="below" disabled={!on || on.length === 0} onClick={turnOff}
-          description={on === null ? "Checking…" : on.length ? `On in: ${on.join(", ")}` : "Off in every emulator"}>
+          description={autoloadSummary(on)}>
           <Label icon="block">Turn off auto-load states</Label>
         </ButtonItem>
       </PanelSectionRow>
@@ -461,6 +469,20 @@ function savesMessage(mode: string, label: string, r: SavesResult, game: Game): 
 }
 
 /** The text under the Calibrate motion button. */
+/** The auto-load button's line: which emulators still load the last state on start, while that's being checked. */
+function autoloadSummary(on: string[] | null): string {
+  if (on === null) return "Checking…";
+  if (on.length) return `On in: ${on.join(", ")}`;
+  return "Off in every emulator";
+}
+
+/** The calibrate button's text: what it does now, which depends on whether motion was calibrated before. */
+function calibrateLabel(busy: string, calibrated: boolean): string {
+  if (busy === "calibrate") return "Calibrating…";
+  return calibrated ? "Recalibrate motion" : "Calibrate motion";
+}
+
+/** The calibrate button's line: during calibration, the step the player is on; otherwise what calibrating is for. */
 function calibrationHint(busy: string, step: string, calibrated: boolean): string {
   if (busy === "calibrate") return step || "Starting…";
   if (calibrated) return "Calibrated. Redo it if tilting goes the wrong way.";
@@ -590,7 +612,9 @@ function GamePage({ view, go }: { view: GamePageView; go: (p: Page) => void }) {
                   const r = await api.setPreset(game.preset!.platform, on);
                   // a running emulator has already read its settings, so a change reaches it at the next launch
                   const when = view.playing ? ": from the next launch" : "";
-                  toast(game.platform, r.ok ? (on ? `Controller preset on${when}` : `Controller preset off${when}, all changes undone`) : r.error || "Failed");
+                  if (!r.ok) toast(game.platform, r.error || "Failed");
+                  else if (on) toast(game.platform, `Controller preset on${when}`);
+                  else toast(game.platform, `Controller preset off${when}, all changes undone`);
                 })} />
             </PanelSectionRow>
           )}
@@ -604,7 +628,7 @@ function GamePage({ view, go }: { view: GamePageView; go: (p: Page) => void }) {
                   const r = await api.calibrateMotion();
                   toast("Motion", r.ok ? "Calibrated" : r.error || "Calibration failed");
                 })}>
-                <Label icon="compass">{busy === "calibrate" ? "Calibrating…" : game.preset.calibrated ? "Recalibrate motion" : "Calibrate motion"}</Label>
+                <Label icon="compass">{calibrateLabel(busy, game.preset.calibrated)}</Label>
               </ButtonItem>
             </PanelSectionRow>
           )}
@@ -646,7 +670,8 @@ function GamePage({ view, go }: { view: GamePageView; go: (p: Page) => void }) {
           <ButtonItem layout="below" disabled={!!busy} description="Downloads this platform's files from RomM into Emulation/bios"
             onClick={() => run("bios", async () => {
               const r = await api.bios(game.platform_id);
-              toast("BIOS", isErr(r) ? r.error : r.count ? `Downloaded ${r.count} files` : "RomM has none for this platform");
+              if (isErr(r)) toast("BIOS", r.error);
+              else toast("BIOS", r.count ? `Downloaded ${r.count} files` : "RomM has none for this platform");
             })}><Label icon="chip">{busy === "bios" ? "Downloading…" : `Get ${game.platform} BIOS`}</Label></ButtonItem>
         </PanelSectionRow>
         <PanelSectionRow>

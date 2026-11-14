@@ -125,9 +125,13 @@ def build(store, public_url, official=None):
             next_id += 1
         base = f"{public_url}/{entry['repository']}"
         newest = entry["versions"][0]
-        plugin_versions = [{"name": v["name"], "hash": v["hash"], "created": v.get("created"),
-                            "artifact": f"{base}/releases/download/{v['tag']}/{entry['asset']}"}
-                           for v in entry["versions"]]
+        plugin_versions = []
+        for version in entry["versions"]:
+            plugin_versions.append({
+                "name": version["name"], "hash": version["hash"], "created": version.get("created"),
+                # the zip on the Gitea release of that version, at Gitea's current address
+                "artifact": f"{base}/releases/download/{version['tag']}/{entry['asset']}",
+            })
         listing.append({
             "id": next_id, "name": entry["name"], "author": entry.get("author", ""),
             "description": entry.get("description", ""), "tags": entry.get("tags", []),

@@ -98,6 +98,7 @@ def details(rom, base_url="", ra_progress=None):
     modes = pick(meta.get("game_modes"), igdb.get("game_modes"), [])
 
     facts = []
+
     def fact(label, value):
         """Add a (label, text) row, joining lists with commas; empty values are left out."""
         if isinstance(value, (list, tuple)):
@@ -105,20 +106,20 @@ def details(rom, base_url="", ra_progress=None):
         if value not in (None, "", 0):
             facts.append([label, str(value)])
 
+    player_count = str(meta.get("player_count") or "")
+    igdb_age_ratings = [a.get("rating", "") for a in igdb.get("age_ratings") or [] if isinstance(a, dict)]
+
     fact("Genres", pick(meta.get("genres"), igdb.get("genres"), ra.get("genres"), []))
     fact("Themes", igdb.get("themes"))
     fact("Game modes", modes)
-    fact("Players", meta.get("player_count") if str(meta.get("player_count") or "") not in ("", "1") else "")
+    fact("Players", player_count if player_count not in ("", "1") else "")  # "1 player" says nothing
     fact("Perspective", igdb.get("player_perspectives"))
     fact("Franchise", pick(meta.get("franchises"), igdb.get("franchises"), []))
     fact("Series", pick(meta.get("collections"), igdb.get("collections"), []))
-    fact("Age rating", pick(meta.get("age_ratings"), [a.get("rating", "") for a in igdb.get("age_ratings") or [] if isinstance(a, dict)], []))
+    fact("Age rating", pick(meta.get("age_ratings"), igdb_age_ratings, []))
     if rating:
-        count = meta.get("rating_count") or igdb.get("total_rating_count")
-        fact("Rating", f"{round(rating)}/100" + (f" ({count:,} ratings)" if isinstance(count, int) and count else ""))
-    fact("How long to beat", " · ".join(f"{label} {_hours(hltb.get(key))}" for key, label in (
-        ("main_story", "Main"), ("main_plus_extra", "Main + extras"), ("completionist", "Completionist"))
-        if _hours(hltb.get(key))))
+        fact("Rating", _rating_text(rating, meta.get("rating_count") or igdb.get("total_rating_count")))
+    fact("How long to beat", _beat_times(hltb))
     cheevos = [a for a in ra.get("achievements") or [] if isinstance(a, dict)]
     if cheevos:
         points = sum(a.get("points") or 0 for a in cheevos)
@@ -130,26 +131,72 @@ def details(rom, base_url="", ra_progress=None):
     fact("Revision", rom.get("revision"))
     fact("Tags", rom.get("tags"))
     fact("Platform", rom.get("platform_display_name"))
-    size = rom.get("fs_size_bytes") or 0
-    fact("File", f"{rom.get('fs_name', '')}" + (f" · {size / 1024**3:.1f} GB" if size >= 1024**3 else f" · {size / 1024**2:.0f} MB" if size else ""))
-    status = [str(mine.get("status")).replace("_", " ").capitalize() if mine.get("status") else "",
-              f"{mine['completion']}% complete" if mine.get("completion") else "",
-              f"rated {mine['rating']}/10" if mine.get("rating") else "",
-              "now playing" if mine.get("now_playing") else "", "in backlog" if mine.get("backlogged") else ""]
-    fact("In your RomM", [x for x in status if x])
+    fact("File", _file_text(rom))
+    fact("In your RomM", _your_status(mine))
     fact("RomM game", f"#{rom['id']}" if rom.get("id") else "")
 
+    has_date = isinstance(date, (int, float)) and date > 0
     return {
         "description": (rom.get("summary") or "").strip(),
         "developers": [d for d in developers if d][:4],
         "publishers": [p for p in publishers if p][:4],
-        "release_date": int(date) if isinstance(date, (int, float)) and date > 0 else None,
+        "release_date": int(date) if has_date else None,
         "rating": round(rating) if rating else None,
-        "features": sorted({STEAM_FEATURES[m.lower()] for m in names(modes) if m and m.lower() in STEAM_FEATURES}),
+        "features": _steam_features(names(modes)),
         "facts": facts,
         "links": links(rom, base_url),
         "activity": activity(rom, ra_progress),
     }
+
+
+def _rating_text(rating, count):
+    """"85/100 (1,234 ratings)", or just "85/100" when the number of ratings isn't known."""
+    text = f"{round(rating)}/100"
+    if isinstance(count, int) and count:
+        text += f" ({count:,} ratings)"
+    return text
+
+
+def _beat_times(hltb):
+    """HowLongToBeat's times as one line ("Main 12 h · Completionist 30 h"), leaving out unknown ones."""
+    parts = []
+    for key, label in (("main_story", "Main"), ("main_plus_extra", "Main + extras"), ("completionist", "Completionist")):
+        hours = _hours(hltb.get(key))
+        if hours:
+            parts.append(f"{label} {hours}")
+    return " · ".join(parts)
+
+
+def _file_text(rom):
+    """The game's file name and size: GB for big files, MB otherwise, nothing when the size isn't known."""
+    name, size = rom.get("fs_name", ""), rom.get("fs_size_bytes") or 0
+    if size >= 1024 ** 3:
+        return f"{name} · {size / 1024 ** 3:.1f} GB"
+    if size:
+        return f"{name} · {size / 1024 ** 2:.0f} MB"
+    return name
+
+
+def _your_status(mine):
+    """What the player marked in RomM (status, completion, own rating, now playing, backlog), as a list."""
+    status = []
+    if mine.get("status"):
+        status.append(str(mine["status"]).replace("_", " ").capitalize())  # "finished", "now_playing"...
+    if mine.get("completion"):
+        status.append(f"{mine['completion']}% complete")
+    if mine.get("rating"):
+        status.append(f"rated {mine['rating']}/10")
+    if mine.get("now_playing"):
+        status.append("now playing")
+    if mine.get("backlogged"):
+        status.append("in backlog")
+    return status
+
+
+def _steam_features(modes):
+    """Steam's feature icons (single player, co-op...) for RomM's game modes, the ones Steam has an icon for."""
+    known = {mode.lower() for mode in modes if mode} & STEAM_FEATURES.keys()
+    return sorted({STEAM_FEATURES[mode] for mode in known})
 
 
 def links(rom, base_url=""):
@@ -191,7 +238,11 @@ def activity(rom, ra_progress=None, limit=40):
             continue
         for e in game.get("earned_achievements") or []:
             a = badges.get(e.get("id")) or {}
-            body = [a.get("description") or "", f"{a['points']} points" if a.get("points") else "", "hardcore" if e.get("date_hardcore") else ""]
+            body = [a.get("description") or ""]
+            if a.get("points"):
+                body.append(f"{a['points']} points")
+            if e.get("date_hardcore"):
+                body.append("hardcore")
             add(e.get("date_hardcore") or e.get("date"), "achievement", a.get("title") or "Achievement unlocked",
                 " · ".join(x for x in body if x), image=a.get("badge_url") or "")
         if game.get("highest_award_kind"):
@@ -237,8 +288,11 @@ def screenshots(client, rom_id, paths, limit=10):
     folder = SHOTS / str(rom_id)
     wanted = {}
     for path in (paths or [])[:limit]:
+        # named after a hash of RomM's path (stable, and safe as a file name), keeping its picture type
         ext = Path(urllib.parse.urlparse(path).path).suffix.lower()
-        wanted[hashlib.sha1(path.encode()).hexdigest()[:12] + (ext if ext in (".jpg", ".jpeg", ".png", ".webp", ".gif") else ".jpg")] = path
+        if ext not in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+            ext = ".jpg"
+        wanted[hashlib.sha1(path.encode()).hexdigest()[:12] + ext] = path
     out = []
     if wanted:
         folder.mkdir(parents=True, exist_ok=True)

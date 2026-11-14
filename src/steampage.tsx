@@ -16,7 +16,9 @@ import { Icon, IconName } from "./ui";
 
 declare const PLUGIN_NAME: string; // filled in from plugin.json by build.mjs
 
+/** One entry of a game's Activity list (metadata.activity in the backend): when, what kind, and what to show. */
 export type Activity = { at: number; kind: string; title: string; body: string; by: string; image: string };
+/** RomM's data for one game's Steam page (metadata.details in the backend). */
 export type Details = {
   description: string; developers: string[]; publishers: string[]; release_date: number | null;
   rating: number | null; features: number[]; facts: [string, string][];
@@ -179,13 +181,18 @@ function outline(root: any) {
     if (lines.length > 40 || depth > 5) return;
     if (Array.isArray(node)) return node.forEach((n) => walk(n, depth));
     if (!isElement(node)) return;
-    const t = node.type, name = typeof t === "string" ? t : t?.displayName || t?.name || (typeof t === "object" ? "object" : "anonymous");
-    lines.push(`${"  ".repeat(depth)}${name} {${Object.keys(node.props || {}).join(",")}}`);
+    lines.push(`${"  ".repeat(depth)}${elementName(node.type)} {${Object.keys(node.props || {}).join(",")}}`);
     const kids = node.props?.children;
     if (kids && typeof kids === "object") walk(kids, depth + 1);
   };
   walk(root, 0);
   return lines.join("\n");
+}
+/** A readable name for an element's type: the tag ("div"), a component's name, or what kind of thing it is. */
+function elementName(type: any): string {
+  if (typeof type === "string") return type;
+  if (type?.displayName || type?.name) return type.displayName || type.name;
+  return typeof type === "object" ? "object" : "anonymous";
 }
 const logged = new Set<string>();
 /** Log a page piece's outline to the plugin's log, once per session per kind of problem. */
