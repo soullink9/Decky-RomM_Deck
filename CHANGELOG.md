@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.6 (2026-11-15)
+
+### Development
+
+- The tests use free ports for the fake RomM server and the motion server, so the test and release workflows
+  can run at once on a runner with host networking. The v0.5.5 release failed because both bound 127.0.0.1:8765.
+
 ## 0.5.5 (2026-11-15)
 
 ### Install
