@@ -4,6 +4,9 @@ from pathlib import Path
 
 tmp = Path(tempfile.mkdtemp())
 os.environ["DECKY_USER_HOME"] = str(tmp)
+sys.path.insert(0, str(Path(__file__).parent))
+from mock_romm import free_udp_port
+os.environ["ROMM_DECK_DSU_PORT"] = str(free_udp_port())  # not 26760: another test run may be using it
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "py_modules"))
 from romm_deck import config, motion as MO
 config.SETTINGS_DIR = tmp / "settings"; config.SETTINGS_DIR.mkdir()

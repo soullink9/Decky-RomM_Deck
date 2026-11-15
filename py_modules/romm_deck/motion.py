@@ -39,7 +39,9 @@ DEV = Path(os.environ.get("ROMM_DECK_DEV", "/dev"))
 VALVE = 0x28DE  # Steam Deck: 0x1205; InputPlumber's virtual ones: 0x12f0-0x12ff (0x12fd = ROG Ally)
 DECK_ACCEL = 9.80665 / 16384     # m/s² per unit in a Steam Deck input report (16384 = 1 g)
 DECK_GYRO = (2000 / 32768) * (3.141592653589793 / 180)  # rad/s per unit (±2000 °/s)
-HOST, PORT = "127.0.0.1", 26760  # the standard DSU address, which EmuDeck's emulator configs already use
+# the standard DSU address, which EmuDeck's emulator configs already use (the tests pick a free port instead,
+# so two test runs on one machine never fight over it)
+HOST, PORT = "127.0.0.1", int(os.environ.get("ROMM_DECK_DSU_PORT") or 26760)
 CALIBRATION = "motion-calibration"  # settings/motion-calibration.json
 G = 9.80665  # standard gravity, m/s²
 RATE = 125  # samples per second while a game is asking (emulators poll at 60-120 Hz)

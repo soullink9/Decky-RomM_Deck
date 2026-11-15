@@ -180,7 +180,17 @@ class H(BaseHTTPRequestHandler):
         self.send(404, {"detail": "nope"})
 
 
-def serve(port):
+def serve(port=0):
+    """Start the fake RomM on 127.0.0.1; port 0 (the default) takes a free one: srv.server_port says which."""
     srv = ThreadingHTTPServer(("127.0.0.1", port), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
+
+
+def free_udp_port():
+    """A UDP port nobody on this machine is using right now, for the motion server under test (the tests may run
+    twice at once on one runner, e.g. the test and release workflows, so a fixed port could be taken)."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]

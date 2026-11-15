@@ -120,6 +120,12 @@ os.environ["ROMM_DECK_HIDRAW"] = str(FAKE / "no-hidraw")  # no Steam Deck-style 
 
 # --- fake decky module, then load main.py the way Decky does ---
 os.environ["HOME"] = str(HOME)
+# the motion server (and everything launched from here) uses a free port, not the standard 26760, so a second test
+# run on the same machine (the test and release workflows at once) can't take it; EmuDeck's fixtures follow it
+DSU = M.free_udp_port()
+os.environ["ROMM_DECK_DSU_PORT"] = str(DSU)
+def fixture(name):
+    return (SCRATCH / "fixtures" / name).read_bytes().replace(b"26760", str(DSU).encode())
 os.environ["DECKY_USER_HOME"] = str(HOME)
 events = []
 decky = types.ModuleType("decky")
@@ -138,8 +144,8 @@ sys.path.insert(0, str(PLUG))
 import main
 from romm_deck import config, library, metadata
 
-srv = M.serve(8765)
-URL = "http://127.0.0.1:8765"
+srv = M.serve()  # a free port, for the same reason
+URL = f"http://127.0.0.1:{srv.server_port}"
 P = main.Plugin()
 run = asyncio.get_event_loop().run_until_complete if False else None
 
@@ -883,14 +889,23 @@ async def test():
     launch(70)
     motion_seen = (FAKE / "motion-during-game.txt").read_text().split()
     check(len(motion_seen) == 6 and [round(float(v), 2) for v in motion_seen[:3]] == [0.0, -1.0, 0.0],
-          f"during the game Ryujinx gets the sensor's motion from 127.0.0.1:26760 (lying flat: 1 g down): {motion_seen}")
+          f"during the game Ryujinx gets the sensor's motion from the motion server (lying flat: 1 g down): {motion_seen}")
     during = json.loads((FAKE / "config-during-game.json").read_text())["input_config"]
     check(during[0]["motion"] == PR.DSU_MOTION and during[2]["motion"] == PR.DSU_MOTION and during[1] == p2,
           "while playing: player 1 and handheld read motion from the plugin; player 2 untouched")
     check(json.loads(ryu_cfg.read_text()) == original and config.load("controller-backup") == {}, "after the game: your settings are back exactly")
     time.sleep(0.3)
-    check(not [p for p in Path("/proc").iterdir() if p.name.isdigit() and b"romm_motion.py" in (p / "cmdline").read_bytes()],
-          "the motion server is gone after the game")
+    def our_motion_servers():  # this run's only: another test run on the machine may have its own going
+        mine = str(PLUG / "bin/romm_motion.py").encode()
+        found = []
+        for p in Path("/proc").iterdir():
+            try:
+                if p.name.isdigit() and mine in (p / "cmdline").read_bytes():
+                    found.append(p.name)
+            except OSError:  # it ended while we looked
+                pass
+        return found
+    check(not our_motion_servers(), "the motion server is gone after the game")
     st = (await P.game(70))["preset"]
     check(st["last"] == "Last game: reading the Ally's motion", f"the game page shows how the last game went: {st['last']}")
 
@@ -918,7 +933,7 @@ async def test():
           "a motion server you had running is paused during the game and started again after")
     (FAKE / "server-active").unlink()
     # something else holding the port: the game still starts, settings untouched, you're told
-    blocker = __import__("socket").socket(2, 2); blocker.bind(("127.0.0.1", 26760))
+    blocker = __import__("socket").socket(2, 2); blocker.bind(("127.0.0.1", DSU))
     await popups(); launch(70)
     got = await popups(); blocker.close()
     check(json.loads(ryu_cfg.read_text()) == original and any(t == "Controller preset not applied" and "port" in b for t, b in got),
@@ -963,13 +978,13 @@ async def test():
         r = subprocess.run([sys.executable, str(SCRATCH / "dsu_client.py")], capture_output=True, text=True)
         return r.stdout.split()
     cemu = HOME / ".config/Cemu/controllerProfiles/controller0.xml"; cemu.parent.mkdir(parents=True)
-    emudeck_cemu = (SCRATCH / "fixtures/cemu-controller0.xml").read_bytes(); cemu.write_bytes(emudeck_cemu)
+    emudeck_cemu = fixture("cemu-controller0.xml"); cemu.write_bytes(emudeck_cemu)
     wiiu = {"system": "wiiu", "name": "Splatoon"}
     check(P._preset_info("wiiu")["label"] == "Ally motion (gyro) for Wii U" and P._preset_info("wiiu")["motion"], "Wii U preset offered on the Ally")
     await P.set_preset("wiiu", True)
     ok, text = PR.apply(wiiu, os.getpid())
     reading = dsu_reading()
-    check(ok and cemu.read_bytes() == emudeck_cemu and len(reading) == 6, f"Wii U, EmuDeck's Cemu profile already reads 127.0.0.1:26760: unchanged, motion served ({text}, {reading})")
+    check(ok and cemu.read_bytes() == emudeck_cemu and len(reading) == 6, f"Wii U, EmuDeck's Cemu profile already reads our motion server: unchanged, motion served ({text}, {reading})")
     PR.restore()
     check(cemu.read_bytes() == emudeck_cemu and dsu_reading()[0] == "no-motion", "…and after the game: still unchanged, motion server stopped")
     own = emudeck_cemu.replace(b"<api>DSUController</api>", b"<api>SDLController</api>", 1)  # someone's own profile, no motion
@@ -983,11 +998,11 @@ async def test():
     await P.set_preset("wiiu", False)
 
     azahar = HOME / ".config/azahar-emu/qt-config.ini"; azahar.parent.mkdir(parents=True)
-    emudeck_azahar = (SCRATCH / "fixtures/azahar-qt-config.ini").read_bytes(); azahar.write_bytes(emudeck_azahar)
+    emudeck_azahar = fixture("azahar-qt-config.ini"); azahar.write_bytes(emudeck_azahar)
     n3ds = {"system": "3ds", "name": "Ocarina 3D"}
     await P.set_preset("3ds", True)
     ok, text = PR.apply(n3ds, os.getpid())
-    check(ok and azahar.read_bytes() == emudeck_azahar and len(dsu_reading()) == 6, f"3DS, EmuDeck's Azahar config already reads 127.0.0.1:26760: unchanged, motion served ({text})")
+    check(ok and azahar.read_bytes() == emudeck_azahar and len(dsu_reading()) == 6, f"3DS, EmuDeck's Azahar config already reads our motion server: unchanged, motion served ({text})")
     PR.restore()
     mouse = emudeck_azahar.replace(b"profiles\\1\\motion_device=engine:cemuhookudp", b"profiles\\1\\motion_device=engine:motion_emu,update_period:100")
     mouse = mouse.replace(b"profiles\\1\\motion_device\\default=false", b"profiles\\1\\motion_device\\default=true")

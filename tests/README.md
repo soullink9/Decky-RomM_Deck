@@ -14,7 +14,9 @@ script that prints `PASS` or `FAIL` per check and exits non-zero if anything fai
 Helpers:
 
 - `mock_romm.py`: a fake RomM server with a small library, collections, saves, states, firmware and the
-  signed-in user. `test_plugin.py` starts it on `127.0.0.1:8765`.
+  signed-in user. `test_plugin.py` starts it on a free port of `127.0.0.1`.
+  The motion tests also use a free port (`ROMM_DECK_DSU_PORT`) instead of 26760, so two runs at once on one
+  machine (the test and release workflows, on a runner with host networking) never collide.
 - `dsu_client.py`: plays an emulator's part, asking the motion server for one reading.
 - `load_source.mjs`: builds one `src/` module with esbuild for the frontend tests.
 - `fixtures/`: short excerpts of EmuDeck's default emulator settings (Cemu, Azahar, Dolphin) that the controller
