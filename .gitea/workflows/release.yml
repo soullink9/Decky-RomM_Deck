@@ -109,7 +109,8 @@ jobs:
         run: python3 scripts/publish_gitea_release.py "$TAG" "$COMMIT" "$TITLE" notes.md "$PRERELEASE" romm-deck.zip
 
       # The Decky store on the `store` branch (scripts/decky_store.py): this release, plus the official store's
-      # listing, which a Decky with this Gitea as its custom store reads. store.yml refreshes it on a schedule.
+      # listing, which a Decky with this Gitea as its custom store reads. The release is listed (with its GitHub
+      # link) once GitHub has published it: store.yml checks every hour.
       - name: Add the release to the Decky store (store branch)
         env:
           TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITEA_TOKEN }}

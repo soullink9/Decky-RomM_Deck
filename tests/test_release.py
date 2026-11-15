@@ -79,64 +79,74 @@ official_server = ThreadingHTTPServer(("127.0.0.1", 0), FakeOfficial)
 threading.Thread(target=official_server.serve_forever, daemon=True).start()
 official_url = f"http://127.0.0.1:{official_server.server_port}/plugins"
 
+GH = "soullink9/Decky-RomM_Deck"
+def gh_zip(tag):
+    return f"https://github.com/{GH}/releases/download/{tag}/romm-deck.zip"
+github, asked = {}, []
+def fake_github(url):
+    asked.append(url)
+    return github.get(url)
+def gitea_free(store):
+    """Every file written to the store branch names no host but GitHub's (and the official store's, in its copy)."""
+    hosts = set()
+    for f in store.rglob("*"):
+        if f.is_file() and f.parent.name != "official":
+            hosts |= set(re.findall(r"https?://([^/\s\"']+)", f.read_text()))
+    return hosts <= {"github.com", "raw.githubusercontent.com"}, hosts
+
 first = make_zip("first.zip", {**good, "romm-deck/main.py": "first"})
-decky_store.add_release(store, "v0.5.1", first, "owner/decky-romm_deck")
-listing, versions = decky_store.build(store, "https://gitea.example.com/", official=decky_store.fetch_official(store, official_url))
+decky_store.add_release(store, "v0.5.1", first, GH)
+listing, versions = decky_store.build(store, GH, decky_store.fetch_official(store, official_url), fake_github)
+check([p["name"] for p in listing] == ["CSS Loader"] and plugin["name"] not in versions,
+      "a release not on GitHub yet isn't listed at all (no Gitea link to fall back on)")
+
+github[gh_zip("v0.5.1")] = b"github's build of 0.5.1"
+listing, versions = decky_store.build(store, GH, decky_store.fetch_official(store, official_url), fake_github)
 ours = listing[0] if listing else {}
-artifact = "https://gitea.example.com/owner/decky-romm_deck/releases/download/v0.5.1/romm-deck.zip"
+artifact, sha = gh_zip("v0.5.1"), hashlib.sha256(b"github's build of 0.5.1").hexdigest()
 check(ours.get("name") == plugin["name"] and ours["author"] == plugin["author"] and ours["tags"] == plugin["publish"]["tags"]
-      and ours["versions"][0] == {"name": "0.5.1", "hash": hashlib.sha256(first.read_bytes()).hexdigest(), "artifact": artifact,
-                                  "created": ours["versions"][0]["created"]}
-      and ours["image_url"] == "https://gitea.example.com/owner/decky-romm_deck/raw/tag/v0.5.1/assets/brand/icon@2x.png",
-      "our plugin comes first, under plugin.json's name, with the zip's SHA-256 and its address on Gitea")
+      and ours["versions"][0] == {"name": "0.5.1", "hash": sha, "artifact": artifact, "created": ours["versions"][0]["created"]}
+      and ours["image_url"] == f"https://raw.githubusercontent.com/{GH}/v0.5.1/assets/brand/icon@2x.png",
+      "once on GitHub: our plugin comes first, with GitHub's link, the hash of the bytes GitHub serves, and GitHub's icon")
 check([p["name"] for p in listing] == [plugin["name"], "CSS Loader"] and len({p["id"] for p in listing}) == 2
       and ours["id"] != 100000,
       "the official plugins follow; one with our name is left out, and our id never clashes with theirs")
-check(versions == {"CSS Loader": ["2.0.0", "aa"], plugin["name"]: ["0.5.1", ours["versions"][0]["hash"], artifact]},
-      "plugins/versions.json: official update info, and ours with its address")
+check(versions == {"CSS Loader": ["2.0.0", "aa"], plugin["name"]: ["0.5.1", sha, artifact]},
+      "plugins/versions.json: official update info, and ours with its GitHub address")
 check(json.loads((store / "plugins.json").read_text()) == listing
       and json.loads((store / "plugins/versions.json").read_text()) == versions, "…both written where Decky reads them")
 
 second = make_zip("second.zip", {**good, "romm-deck/main.py": "second"})
-decky_store.add_release(store, "v0.5.2", second, "owner/decky-romm_deck")
-decky_store.add_release(store, "v0.5.2", second, "owner/decky-romm_deck")
+decky_store.add_release(store, "v0.5.2", second, GH)
+decky_store.add_release(store, "v0.5.2", second, GH)
 FakeOfficial.up = False
-listing, versions = decky_store.build(store, "https://git.newdomain.example", official=decky_store.fetch_official(store, official_url))
-ours = listing[0]
-check([v["name"] for v in ours["versions"]] == ["0.5.2", "0.5.1"], "a newer release goes on top, once; the older one stays installable")
-check(all(v["artifact"].startswith("https://git.newdomain.example/owner/") for v in ours["versions"])
-      and ours["image_url"].startswith("https://git.newdomain.example/"),
-      "Gitea moved to a new address: every release's link follows on the next build")
+listing, versions = decky_store.build(store, GH, decky_store.fetch_official(store, official_url), fake_github)
+check([v["name"] for v in listing[0]["versions"]] == ["0.5.1"] and versions[plugin["name"]][0] == "0.5.1"
+      and listing[0]["image_url"].endswith("/v0.5.1/assets/brand/icon@2x.png"),
+      "a newer release not on GitHub yet: left out; the store keeps offering the newest one GitHub has")
 check([p["name"] for p in listing] == [plugin["name"], "CSS Loader"],
       "official store unreachable: its listing from last time is kept")
 check((store / "README.md").exists(), "the store branch says what it is (README.md)")
 
-# GitHub first: once a version's zip is on its GitHub release, the store links there, with GitHub's own hash
-github = {"https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.1/romm-deck.zip": b"github's build of 0.5.1"}
-asked = []
-def fake_github(url):
-    asked.append(url)
-    return github.get(url)
-FakeOfficial.up = True
-official = decky_store.fetch_official(store, official_url)
-listing, versions = decky_store.build(store, "https://gitea.example.com", "soullink9/Decky-RomM_Deck", official, fake_github)
-by_version = {v["name"]: v for v in listing[0]["versions"]}
-check(by_version["0.5.1"]["artifact"] == "https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.1/romm-deck.zip"
-      and by_version["0.5.1"]["hash"] == hashlib.sha256(b"github's build of 0.5.1").hexdigest(),
-      "a version on GitHub: downloaded from GitHub, with the hash of the bytes GitHub serves")
-check(by_version["0.5.2"]["artifact"].startswith("https://gitea.example.com/") and by_version["0.5.2"]["hash"] == hashlib.sha256(second.read_bytes()).hexdigest(),
-      "a version not on GitHub yet: Gitea's release, with Gitea's hash")
-check(versions[plugin["name"]][2].startswith("https://gitea.example.com/") and listing[0]["image_url"].startswith("https://gitea.example.com/"),
-      "…so the update check and icon use Gitea's until the newest version reaches GitHub")
-github["https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.2/romm-deck.zip"] = second.read_bytes()
+github[gh_zip("v0.5.2")] = second.read_bytes()
 asked.clear()
-listing, versions = decky_store.build(store, "https://gitea.example.com", "soullink9/Decky-RomM_Deck", official, fake_github)
-check(versions[plugin["name"]] == ["0.5.2", hashlib.sha256(second.read_bytes()).hexdigest(),
-                                   "https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.2/romm-deck.zip"]
-      and listing[0]["image_url"] == "https://raw.githubusercontent.com/soullink9/Decky-RomM_Deck/v0.5.2/assets/brand/icon@2x.png",
-      "the next build after GitHub's release appears: the newest version, its update check and icon move to GitHub")
-check(asked == ["https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.2/romm-deck.zip"],
+listing, versions = decky_store.build(store, GH, decky_store.fetch_official(store, official_url), fake_github)
+check([v["name"] for v in listing[0]["versions"]] == ["0.5.2", "0.5.1"]
+      and versions[plugin["name"]] == ["0.5.2", hashlib.sha256(second.read_bytes()).hexdigest(), gh_zip("v0.5.2")]
+      and listing[0]["image_url"] == f"https://raw.githubusercontent.com/{GH}/v0.5.2/assets/brand/icon@2x.png",
+      "the next build after GitHub's release appears: the new version goes on top, once, with its update check and icon")
+check(asked == [gh_zip("v0.5.2")],
       f"a version already found on GitHub isn't downloaded again (its hash is kept in own.json): {asked}")
+
+# a store from before, whose own.json named the Gitea repository: rewritten to GitHub's on the next build
+own = json.loads((store / "own.json").read_text())
+own[0]["repository"] = "Soullink/decky-romm_deck"
+(store / "own.json").write_text(json.dumps(own))
+decky_store.build(store, GH, decky_store.fetch_official(store, official_url), fake_github)
+check(json.loads((store / "own.json").read_text())[0]["repository"] == GH, "an older own.json's Gitea repository becomes GitHub's")
+ok, hosts = gitea_free(store)
+check(ok, f"nothing on the store branch names a host other than GitHub (it's push-mirrored there): {sorted(hosts)}")
+FakeOfficial.up = True
 
 # no official listing at all (never fetched, and the official store down): nothing is written
 FakeOfficial.up = False
@@ -150,26 +160,6 @@ except decky_store.NoOfficialListing:
 check(refused and not (empty_store / "plugins.json").exists(),
       "official store unreachable with no copy from before: refused, so the official plugins never vanish from the store")
 official_server.shutdown()
-
-# Gitea's public address, asked of Gitea (the repository's web address is built from its ROOT_URL)
-class FakeGiteaRepo(BaseHTTPRequestHandler):
-    """A Gitea that knows itself as https://git.example.com, reached at an internal address."""
-    def log_message(self, *args):
-        pass
-    def do_GET(self):
-        ok = self.path == "/api/v1/repos/Soullink/Decky-RomM_Deck" and self.headers.get("Authorization") == "token t"
-        body = json.dumps({"html_url": "https://git.example.com/Soullink/Decky-RomM_Deck"} if ok else {}).encode()
-        self.send_response(200 if ok else 401)
-        self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
-repo_server = ThreadingHTTPServer(("127.0.0.1", 0), FakeGiteaRepo)
-threading.Thread(target=repo_server.serve_forever, daemon=True).start()
-internal = f"http://127.0.0.1:{repo_server.server_port}"
-check(decky_store.gitea_public_url(internal, "Soullink/Decky-RomM_Deck", "t") == "https://git.example.com",
-      "Gitea's public address comes from Gitea itself, not the internal one the runner uses")
-check(decky_store.gitea_public_url(internal, "Soullink/Decky-RomM_Deck", "wrong") is None
-      and decky_store.gitea_public_url("http://127.0.0.1:9", "Soullink/Decky-RomM_Deck", "t") is None,
-      "refused or unreachable: no address (the script then falls back), no crash")
-repo_server.shutdown()
 
 # --- build_zip.py: the same files always make the same zip, so Gitea's and GitHub's builds match ------------
 import build_zip, os as _os, time as _time
@@ -253,7 +243,7 @@ gitea_url = f"http://127.0.0.1:{server.server_port}"
 zip_path = make_zip("romm-deck.zip", good)
 # A real runner sets the workflow's own Gitea addresses for every step; left in, they'd send these calls to the
 # real Gitea instead of the fake one. The tests set them themselves where they're needed.
-outside = {k: v for k, v in os.environ.items() if k not in ("LOCAL_GITEA_URL", "PUBLIC_GITEA_URL")}
+outside = {k: v for k, v in os.environ.items() if k != "LOCAL_GITEA_URL"}
 env = {**outside, "GITHUB_SERVER_URL": gitea_url, "GITHUB_REPOSITORY": "owner/decky-romm_deck", "RELEASE_TOKEN": "secret"}
 
 def run_publish(title, extra_env=None):

@@ -6,26 +6,20 @@
 # Reads from the environment, as the workflows set it:
 #   TOKEN               a token that may push to the repository
 #   GITHUB_REPOSITORY   owner/repo, and GITHUB_SERVER_URL, Gitea's address (both set by Gitea's runner)
-#   PUBLIC_REPOSITORY   owner/repo on GitHub, where the handheld downloads each release once it's there
-#   LOCAL_GITEA_URL  optional: Gitea's address as the runner reaches it (fetch and push go there)
-#   PUBLIC_GITEA_URL    optional: Gitea's address as the handheld reaches it, for downloads not on GitHub yet;
-#                       when not set, Gitea is asked for its public address (its ROOT_URL)
+#   PUBLIC_REPOSITORY   owner/repo on GitHub: every address in the store is GitHub's (the store branch is
+#                       push-mirrored there, so it never names Gitea), and a release is listed once GitHub has it
+#   LOCAL_GITEA_URL     optional: Gitea's address as the runner reaches it (fetch and push go there)
 #   STORE_AUTHOR_NAME, STORE_AUTHOR_EMAIL   who the store's commits are by
 #
-# The release and the schedule can update the store at the same moment; if the push is refused because the
-# branch moved, it starts again from the new store (three tries).
+# The branch is always one commit with no history: each update replaces it (a force push), so an address
+# that was once written there doesn't stay in old commits, on Gitea or on the GitHub mirror (which follows
+# force pushes). A branch that still has history is replaced at the next run even with nothing new.
+# The release and the schedule can update the store at the same moment: the push only replaces the branch
+# it started from, and if the branch moved meanwhile it starts again from the new store (three tries).
 set -eu
 
 auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
 repo="${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
-# Gitea's public address, for the links to Gitea's releases: the variable if it's set, otherwise asked of Gitea
-# (its ROOT_URL; the runner itself may only know an internal address), and the runner's address as a last resort
-public="${PUBLIC_GITEA_URL:-}"
-if [ -z "$public" ]; then
-    public=$(python3 scripts/decky_store.py public-url "${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}" "$GITHUB_REPOSITORY") ||
-        public="$GITHUB_SERVER_URL"
-fi
-echo "Gitea links use $public"
 if [ $# -ge 2 ]; then
     message="chore(store): add $1"
 else
@@ -35,23 +29,32 @@ fi
 for attempt in 1 2 3; do
     rm -rf store
     git init -q store
+    old="" old_tree="" has_history=""
     if git -C store -c http.extraHeader="Authorization: Basic $auth" fetch -q --depth 1 "$repo" store; then
         git -C store checkout -q FETCH_HEAD
+        old=$(git -C store rev-parse FETCH_HEAD)
+        old_tree=$(git -C store rev-parse 'FETCH_HEAD^{tree}')
+        # (a shallow fetch hides the parents from git log, but the commit itself still names them)
+        if git -C store cat-file -p "$old" | grep -q '^parent '; then has_history=yes; fi
     else
         echo "No store branch yet: starting one"
     fi
     if [ $# -ge 2 ]; then
-        python3 scripts/decky_store.py add store "$1" "$2" "$GITHUB_REPOSITORY"
+        python3 scripts/decky_store.py add store "$1" "$2" "$PUBLIC_REPOSITORY"
     fi
-    python3 scripts/decky_store.py build store "$public" "$PUBLIC_REPOSITORY"
+    python3 scripts/decky_store.py build store "$PUBLIC_REPOSITORY"
 
     git -C store add -A
-    if git -C store diff --cached --quiet; then
+    tree=$(git -C store write-tree)
+    if [ "$tree" = "$old_tree" ] && [ -z "$has_history" ]; then
         echo "Store unchanged"
         exit 0
     fi
-    git -C store -c user.name="$STORE_AUTHOR_NAME" -c user.email="$STORE_AUTHOR_EMAIL" commit -q -m "$message"
-    if git -C store -c http.extraHeader="Authorization: Basic $auth" push -q "$repo" HEAD:refs/heads/store; then
+    [ -n "$has_history" ] && echo "Replacing the store branch's history with a single commit"
+    commit=$(echo "$message" | git -C store -c user.name="$STORE_AUTHOR_NAME" -c user.email="$STORE_AUTHOR_EMAIL" \
+        commit-tree "$tree")
+    if git -C store -c http.extraHeader="Authorization: Basic $auth" push -q \
+        --force-with-lease="refs/heads/store:$old" "$repo" "$commit:refs/heads/store"; then
         echo "Store updated"
         exit 0
     fi

@@ -143,7 +143,6 @@ Settings → Actions); all of them are optional:
 | Name | Kind | What it's for |
 |---|---|---|
 | `LOCAL_GITEA_URL` | variable | Gitea's address as the runner's jobs reach it, when that isn't its public address (a runner on the same Docker network as Gitea, say: `http://gitea-server:3000`). Used to fetch code, publish and update the store. |
-| `PUBLIC_GITEA_URL` | variable | Gitea's address as the handheld reaches it, for the Decky store's Gitea links. Not needed: by default the store asks Gitea for its ROOT_URL. |
 | `RELEASE_TOKEN` | secret | A token with write access to the repository, if the job's own token isn't allowed to create releases or push the `store` branch. |
 
 Gitea refuses variable and secret names starting with `GITEA_` or `GITHUB_`, hence these names. `GITEA_TOKEN`, the
@@ -160,20 +159,21 @@ The store list is served by Gitea, but RomM Deck itself downloads from **GitHub*
 store (Decky's request needs a CORS answer GitHub's file hosting doesn't give, and two addresses, below), but it
 serves release downloads fine.
 
+Every address written to the `store` branch is GitHub's. Gitea's push mirror copies every branch to GitHub, and
+can't leave one out, so the store's files never name Gitea or the domain it's published at: only the web server
+in front of Gitea (below) knows that. The branch is also always a single commit with no history: each update
+replaces it with a force push (which the mirror follows), so nothing written there once lingers in old commits.
+
 - Each release made on Gitea adds itself (the last step of `.gitea/workflows/release.yml`).
 - `.gitea/workflows/store.yml` refreshes the store every hour, or from Actions → Decky store → Run workflow:
   - the official listing. If the official store can't be reached, the copy from last time is kept; if there's
     no copy at all, the store isn't changed, since publishing it would take every official plugin (and their
     updates) away from the handheld. Official plugins still download from the official store.
-  - each RomM Deck version's link: its GitHub release once GitHub has the zip (the push mirror sends the tag,
-    and GitHub's workflow publishes it, usually minutes after the Gitea release), Gitea's release until then.
-    The hash listed is the one of the zip GitHub serves, downloaded once and kept in `own.json`. Both builds
-    are byte-for-byte identical anyway (`scripts/build_zip.py`), so either download matches.
-- Gitea's links use the address Gitea is published at: the store asks Gitea for it (the repository's web address,
-  built from Gitea's ROOT_URL), because a runner next to Gitea often only knows an internal one like
-  `http://gitea-server:3000` that the handheld can't reach. If Gitea moves (and its ROOT_URL with it), the next
-  refresh rewrites every Gitea link, since only versions and hashes are stored (`own.json`). The Actions
-  variable `PUBLIC_GITEA_URL` overrides it, if the handheld should use some other address.
+  - each RomM Deck version, once its GitHub release has the zip (the push mirror sends the tag, and GitHub's
+    workflow publishes it, usually minutes after the Gitea release). Until then the version isn't listed, so
+    a new release shows up in the store within the hour after it reaches GitHub. Its link and icon are
+    GitHub's, and the hash listed is the one of the zip GitHub serves, downloaded once and kept in `own.json`.
+    Both builds are byte-for-byte identical anyway (`scripts/build_zip.py`).
 - `scripts/update_decky_store.sh` does the work for both workflows (`scripts/decky_store.py` builds the files):
   `plugins.json`, the list with every version's SHA-256 and, for ours, its address; `plugins/versions.json`, what
   Decky 3.3.1 and newer use for update checks; and a `README.md` saying what the branch is.
@@ -197,14 +197,14 @@ to Gitea's container labels (change the host, owner and repository to yours; `$$
 
 The repository path in the replacement is the one on Gitea (owner and repository as Gitea shows them). The store
 address is then `https://gitea.example.com/decky-store/plugins`. Decky reads the store from Steam's interface,
-which needs the CORS headers; downloads go straight to GitHub's (or Gitea's) release. The repository has to be
-readable without signing in.
+which needs the CORS headers; downloads go straight to GitHub's release. The repository has to be readable
+without signing in.
 
 Decky has one store at a time, which is why the official listing is merged in: with this store chosen, Decky still
 lists and updates every official plugin. Searching works as usual; the sort options don't change the order (a file
 can't sort itself), which is RomM Deck first, then the official store's own order.
 
-The Traefik rule names Gitea's host too: if Gitea moves, change it there as well as in Gitea's ROOT_URL.
+The Traefik rule names Gitea's host: if Gitea moves, change it there. Nothing on the `store` branch changes.
 
 ## Reporting bugs
 
