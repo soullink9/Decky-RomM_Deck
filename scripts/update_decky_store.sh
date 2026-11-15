@@ -8,8 +8,8 @@
 #   GITHUB_REPOSITORY   owner/repo, and GITHUB_SERVER_URL, Gitea's address (both set by Gitea's runner)
 #   PUBLIC_REPOSITORY   owner/repo on GitHub, where the handheld downloads each release once it's there
 #   LOCAL_GITEA_URL  optional: Gitea's address as the runner reaches it (fetch and push go there)
-#   PUBLIC_GITEA_URL    Gitea's address as the handheld reaches it, for downloads not on GitHub yet; Gitea's
-#                       own address when not set, which on a runner next to Gitea is often an internal one
+#   PUBLIC_GITEA_URL    optional: Gitea's address as the handheld reaches it, for downloads not on GitHub yet;
+#                       when not set, Gitea is asked for its public address (its ROOT_URL)
 #   STORE_AUTHOR_NAME, STORE_AUTHOR_EMAIL   who the store's commits are by
 #
 # The release and the schedule can update the store at the same moment; if the push is refused because the
@@ -18,7 +18,14 @@ set -eu
 
 auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
 repo="${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}/$GITHUB_REPOSITORY.git"
-public="${PUBLIC_GITEA_URL:-$GITHUB_SERVER_URL}"
+# Gitea's public address, for the links to Gitea's releases: the variable if it's set, otherwise asked of Gitea
+# (its ROOT_URL; the runner itself may only know an internal address), and the runner's address as a last resort
+public="${PUBLIC_GITEA_URL:-}"
+if [ -z "$public" ]; then
+    public=$(python3 scripts/decky_store.py public-url "${LOCAL_GITEA_URL:-$GITHUB_SERVER_URL}" "$GITHUB_REPOSITORY") ||
+        public="$GITHUB_SERVER_URL"
+fi
+echo "Gitea links use $public"
 if [ $# -ge 2 ]; then
     message="chore(store): add $1"
 else

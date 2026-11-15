@@ -151,6 +151,26 @@ check(refused and not (empty_store / "plugins.json").exists(),
       "official store unreachable with no copy from before: refused, so the official plugins never vanish from the store")
 official_server.shutdown()
 
+# Gitea's public address, asked of Gitea (the repository's web address is built from its ROOT_URL)
+class FakeGiteaRepo(BaseHTTPRequestHandler):
+    """A Gitea that knows itself as https://git.example.com, reached at an internal address."""
+    def log_message(self, *args):
+        pass
+    def do_GET(self):
+        ok = self.path == "/api/v1/repos/Soullink/Decky-RomM_Deck" and self.headers.get("Authorization") == "token t"
+        body = json.dumps({"html_url": "https://git.example.com/Soullink/Decky-RomM_Deck"} if ok else {}).encode()
+        self.send_response(200 if ok else 401)
+        self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+repo_server = ThreadingHTTPServer(("127.0.0.1", 0), FakeGiteaRepo)
+threading.Thread(target=repo_server.serve_forever, daemon=True).start()
+internal = f"http://127.0.0.1:{repo_server.server_port}"
+check(decky_store.gitea_public_url(internal, "Soullink/Decky-RomM_Deck", "t") == "https://git.example.com",
+      "Gitea's public address comes from Gitea itself, not the internal one the runner uses")
+check(decky_store.gitea_public_url(internal, "Soullink/Decky-RomM_Deck", "wrong") is None
+      and decky_store.gitea_public_url("http://127.0.0.1:9", "Soullink/Decky-RomM_Deck", "t") is None,
+      "refused or unreachable: no address (the script then falls back), no crash")
+repo_server.shutdown()
+
 # --- build_zip.py: the same files always make the same zip, so Gitea's and GitHub's builds match ------------
 import build_zip, os as _os, time as _time
 tree = tmp / "zipsrc" / "romm-deck"

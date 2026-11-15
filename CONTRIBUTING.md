@@ -143,7 +143,7 @@ Settings → Actions); all of them are optional:
 | Name | Kind | What it's for |
 |---|---|---|
 | `LOCAL_GITEA_URL` | variable | Gitea's address as the runner's jobs reach it, when that isn't its public address (a runner on the same Docker network as Gitea, say: `http://gitea-server:3000`). Used to fetch code, publish and update the store. |
-| `PUBLIC_GITEA_URL` | variable | Gitea's address as the handheld reaches it, for the Decky store's download links. Not needed when Gitea's own ROOT_URL is already that address. |
+| `PUBLIC_GITEA_URL` | variable | Gitea's address as the handheld reaches it, for the Decky store's Gitea links. Not needed: by default the store asks Gitea for its ROOT_URL. |
 | `RELEASE_TOKEN` | secret | A token with write access to the repository, if the job's own token isn't allowed to create releases or push the `store` branch. |
 
 Gitea refuses variable and secret names starting with `GITEA_` or `GITHUB_`, hence these names. `GITEA_TOKEN`, the
@@ -169,11 +169,11 @@ serves release downloads fine.
     and GitHub's workflow publishes it, usually minutes after the Gitea release), Gitea's release until then.
     The hash listed is the one of the zip GitHub serves, downloaded once and kept in `own.json`. Both builds
     are byte-for-byte identical anyway (`scripts/build_zip.py`), so either download matches.
-- Gitea's links are written from the Actions variable `PUBLIC_GITEA_URL`: the address the handheld reaches Gitea
-  at, for example `https://gitea.example.com`. Set it, on your user (Settings → Actions → Variables): without it
-  the links use Gitea's own address, which on a runner next to Gitea is often an internal one like
-  `http://gitea-server:3000` that the handheld can't reach. If Gitea moves, change the variable; the next refresh
-  rewrites every Gitea link, since only versions and hashes are stored (`own.json`).
+- Gitea's links use the address Gitea is published at: the store asks Gitea for it (the repository's web address,
+  built from Gitea's ROOT_URL), because a runner next to Gitea often only knows an internal one like
+  `http://gitea-server:3000` that the handheld can't reach. If Gitea moves (and its ROOT_URL with it), the next
+  refresh rewrites every Gitea link, since only versions and hashes are stored (`own.json`). The Actions
+  variable `PUBLIC_GITEA_URL` overrides it, if the handheld should use some other address.
 - `scripts/update_decky_store.sh` does the work for both workflows (`scripts/decky_store.py` builds the files):
   `plugins.json`, the list with every version's SHA-256 and, for ours, its address; `plugins/versions.json`, what
   Decky 3.3.1 and newer use for update checks; and a `README.md` saying what the branch is.
@@ -204,7 +204,7 @@ Decky has one store at a time, which is why the official listing is merged in: w
 lists and updates every official plugin. Searching works as usual; the sort options don't change the order (a file
 can't sort itself), which is RomM Deck first, then the official store's own order.
 
-The Traefik rule names Gitea's host too: if Gitea moves, change it there as well as in `PUBLIC_GITEA_URL`.
+The Traefik rule names Gitea's host too: if Gitea moves, change it there as well as in Gitea's ROOT_URL.
 
 ## Reporting bugs
 

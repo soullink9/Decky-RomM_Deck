@@ -11,6 +11,8 @@
   official plugins or their updates. The official store is asked with its own user agent.
 - `romm-deck.zip` is now byte-for-byte reproducible, so Gitea's and GitHub's builds of a release are identical.
 - The store branch has a README saying what it is.
+- The store's Gitea links use the address Gitea is published at, asked of Gitea itself, instead of the
+  runner's internal address; no variable needed.
 
 ## 0.5.3 (2026-11-13)
 

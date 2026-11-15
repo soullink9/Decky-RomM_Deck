@@ -3,8 +3,8 @@
 #     (when the official store can't be reached, the copy from last time is kept);
 #   - each RomM Deck release's download link: GitHub's release once the push mirror and GitHub's workflow have
 #     published it (usually minutes after the Gitea release), Gitea's until then;
-#   - Gitea's links use its current public address (PUBLIC_GITEA_URL), so a move to a new domain reaches the
-#     store within the hour.
+#   - Gitea's links use its current public address (asked of Gitea, or PUBLIC_GITEA_URL), so a move to a new
+#     domain reaches the store within the hour.
 # Each release adds itself (release.yml). A refresh with nothing new commits nothing.
 #
 # Uses no actions, like the other workflows, so it runs when GitHub can't be reached.

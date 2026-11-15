@@ -34,6 +34,7 @@ official plugins would take them, and their updates, away from the handheld.
 import hashlib
 import http.client
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -227,8 +228,28 @@ main branch explains how to serve it.
 """
 
 
+def gitea_public_url(server, repository, token):
+    """Gitea's public address (its ROOT_URL), asked of Gitea itself, or None if it can't be asked.
+
+    A runner registered with Gitea's internal address (http://gitea-server:3000, say) is told that address,
+    which the handheld can't reach. Gitea's API gives every repository's web address built from ROOT_URL, the
+    address Gitea is published at, so the store's Gitea links follow it, also after a move to a new domain,
+    without a variable to keep up to date."""
+    request = urllib.request.Request(f"{server.rstrip('/')}/api/v1/repos/{repository}",
+                                     headers={"Authorization": f"token {token}", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as reply:
+            web_address = json.loads(reply.read()).get("html_url", "")
+    except (OSError, ValueError, http.client.HTTPException):
+        return None
+    suffix = "/" + repository
+    if not web_address.lower().endswith(suffix.lower()):
+        return None
+    return web_address[: -len(suffix)]
+
+
 def main():
-    """`add` a release, or `build` the files Decky reads."""
+    """`add` a release, `build` the files Decky reads, or print Gitea's `public-url`."""
     command, args = sys.argv[1], sys.argv[2:]
     if command == "add":
         store, tag, zip_path, repository = args
@@ -242,8 +263,14 @@ def main():
         except NoOfficialListing as e:
             sys.exit(f"{e}\nThe store was left as it was: without the official listing, a Decky using it would lose "
                      "every official plugin and their updates. It's tried again at the next refresh.")
+    elif command == "public-url":
+        server, repository, token = args[0], args[1], os.environ.get("TOKEN", "")
+        address = gitea_public_url(server, repository, token)
+        if not address:
+            sys.exit(f"Couldn't ask {server} for its public address")
+        print(address)
     else:
-        sys.exit(f"unknown command {command}: use add or build")
+        sys.exit(f"unknown command {command}: use add, build or public-url")
 
 
 if __name__ == "__main__":

@@ -85,7 +85,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `.github/workflows/release.yml` | Publishes the same release on GitHub when a version tag arrives there (or from its own Run workflow button) |
 | `scripts/release_notes.py` | Shared by both release workflows: checks the version, gives the release's title, writes the notes (with the zip's install-from-URL address on GitHub) from CHANGELOG.md |
 | `scripts/update_decky_store.sh` | Fetches the `store` branch, updates it (a release, or a refresh) and pushes it back, retrying if it moved meanwhile |
-| `scripts/decky_store.py` | Builds the Decky store files: RomM Deck's releases (`own.json`; links to GitHub's release when it has the zip, Gitea's at `PUBLIC_GITEA_URL` otherwise) merged with the official store's listing, into `plugins.json` and `plugins/versions.json` |
+| `scripts/decky_store.py` | Builds the Decky store files: RomM Deck's releases (`own.json`; links to GitHub's release when it has the zip, Gitea's at its public address otherwise) merged with the official store's listing, into `plugins.json` and `plugins/versions.json` |
 | `scripts/build_zip.py` | Zips the plugin reproducibly (fixed dates, sorted entries, plain permissions, stored), so Gitea's and GitHub's builds of a release are byte-for-byte the same |
 | `scripts/publish_gitea_release.py` | Creates or updates the Gitea release and uploads the zip, through Gitea's API (standard library only) |
 | `scripts/check_package.py` | Checks `romm-deck.zip` the way Decky's installer reads it (one folder, `plugin.json` inside it, the files Decky loads), run by every `package.sh` |
@@ -279,7 +279,7 @@ flowchart LR
   is checked and described the same way on both. The notes always point at GitHub, the copy people install from.
 - The store (`scripts/decky_store.py`) keeps only RomM Deck's versions and zip hashes (`own.json`) and works the
   download links out on every build: GitHub's release once it has the zip (with the hash of GitHub's copy),
-  otherwise Gitea's at `PUBLIC_GITEA_URL`. Gitea serves the store list; GitHub can't (no CORS answer for Decky's
+  otherwise Gitea's, at the public address Gitea reports (its ROOT_URL, or `PUBLIC_GITEA_URL` if set). Gitea serves the store list; GitHub can't (no CORS answer for Decky's
   request). Both workflows build the zip with `scripts/build_zip.py`, which gives the same bytes for the same
   files on any machine. Decky asks for `<store>` and `<store>/versions`; the web server maps both to files on the `store`
   branch ([CONTRIBUTING.md](CONTRIBUTING.md#a-decky-store-on-gitea)).
