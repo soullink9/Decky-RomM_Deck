@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.5 (2026-11-15)
+
+### Install
+
+- The self-hosted Decky store names only GitHub: every download link and icon on the `store` branch is
+  GitHub's, and Gitea's address is never written there, since Gitea's push mirror copies that branch to
+  GitHub too. A new version appears in the store once its GitHub release has the zip (checked every hour),
+  instead of linking to the Gitea release until then. The `PUBLIC_GITEA_URL` variable is gone, and the store
+  no longer asks Gitea for its public address.
+- The `store` branch is now a single commit, replaced (force-pushed) on every update, so links from earlier
+  versions of the store don't stay in its history. A branch that still has history is replaced at the next
+  hourly refresh.
+
 ## 0.5.4 (2026-11-14)
 
 ### Install
