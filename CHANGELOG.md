@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.7 (2026-11-16)
+
+### Controller presets
+
+- "Use my real Wii Remotes" also turns off Dolphin's Bluetooth passthrough for that game, since with passthrough
+  on Dolphin ignores the real Wii Remote setting. Like the rest of the preset, it's on Dolphin's command line
+  and leaves Dolphin's files alone.
+- A game's own Dolphin settings (its Properties in Dolphin) that pick emulated Wii Remotes win over the preset.
+  The popup now names such games, and `launch.log` has what they set.
+
 ## 0.5.6 (2026-11-15)
 
 ### Development
