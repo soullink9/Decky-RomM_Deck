@@ -1038,7 +1038,7 @@ async def test():
     hid_device("hidraw1", "0005:0000057E:00000306")  # a Wii Remote paired over Bluetooth: Dolphin finds those itself
     real = ["-C", "Wiimote.Wiimote1.Source=2", "-C", "Wiimote.Wiimote2.Source=2", "-C", "Wiimote.Wiimote3.Source=2",
             "-C", "Wiimote.Wiimote4.Source=2", "-C", "Dolphin.Core.WiimoteContinuousScanning=True",
-            "-C", "Logger.Logs.Wiimote=True", "-C", "Logger.Options.WriteToConsole=True", "-C", "Logger.Options.Verbosity=3"]
+            "-C", "Dolphin.BluetoothPassthrough.Enabled=False", "-C", "Logger.Logs.Wiimote=True", "-C", "Logger.Options.WriteToConsole=True", "-C", "Logger.Options.Verbosity=3"]
     ok, text = PR.apply(wii, os.getpid())
     check(ok and PR.launch_args(wii) == real and dsu_reading()[0] == "no-motion",
           f"during a Wii game: Dolphin is told on its command line to use four real Wii Remotes and keep looking for them, no motion server ({text})")
@@ -1061,6 +1061,14 @@ async def test():
     ok, text = PR.apply(wii, os.getpid())
     check(ok and "isn't allowed to open the Wii Remote sensor" in text and PR.launch_args(wii) == real,
           f"a sensor Dolphin can't open: the preset still applies, and says why remotes on it won't connect ({text})")
+    # a game's own Dolphin settings that pick emulated remotes rank above the command line: said so
+    gs = HOME / ".var/app/org.DolphinEmu.dolphin-emu/data/dolphin-emu/GameSettings"; gs.mkdir(parents=True, exist_ok=True)
+    (gs / "RMCE01.ini").write_text("[Controls]\nWiimoteSource0 = 1\n")
+    (gs / "SMNE01.ini").write_text("[Controls]\nWiimoteSource0 = 2\n[Core]\nCPUThread = False\n")
+    ok, text = PR.apply(wii, os.getpid())
+    check(ok and "RMCE01.ini" in text and "SMNE01.ini" not in text and PR.launch_args(wii) == real,
+          f"a game's Dolphin settings choosing emulated remotes: named in the popup ({text})")
+    PR.restore(); shutil.rmtree(gs)
     shutil.rmtree(hidraw); PR.HIDRAW = hidraw  # no raw HID devices at all
     ok, text = PR.apply(wii, os.getpid())
     check(ok and "mode 4" in text, f"no raw HID devices at all: no error ({text})")

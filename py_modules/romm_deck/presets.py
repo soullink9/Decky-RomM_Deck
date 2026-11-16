@@ -69,6 +69,10 @@ REAL_WIIMOTE = "2"  # Dolphin's [WiimoteN] Source: 0 none, 1 emulated, 2 real
 HIDRAW, DEV = Path("/sys/class/hidraw"), Path("/dev")
 USB_BUS = "0003"  # the bus number in HID_ID (Bluetooth is 0005)
 WII_REMOTE_IDS = ("0000057E:00000306", "0000057E:00000330")  # Nintendo's ids: Wii Remote, Wii Remote Plus
+# A game's own Dolphin settings (its Properties in Dolphin, kept as GameSettings/<game id>.ini) rank above the
+# command line, so a [Controls] WiimoteSourceN there decides that remote whatever the preset says.
+DOLPHIN_GAME_SETTINGS = [FP / "org.DolphinEmu.dolphin-emu/data/dolphin-emu/GameSettings",
+                         H / ".local/share/dolphin-emu/GameSettings"]
 
 
 # ---------- what each preset changes ----------
@@ -131,6 +135,9 @@ def _dolphin_real_wiimotes_args():
     for n in range(1, 5):
         args += ["-C", f"Wiimote.Wiimote{n}.Source={REAL_WIIMOTE}"]
     args += ["-C", "Dolphin.Core.WiimoteContinuousScanning=True"]
+    # With Bluetooth passthrough on, Dolphin hands a real Bluetooth adapter to the game and ignores every
+    # Source above, so it's switched off for this run.
+    args += ["-C", "Dolphin.BluetoothPassthrough.Enabled=False"]
     args += ["-C", "Logger.Logs.Wiimote=True", "-C", "Logger.Options.WriteToConsole=True",
              "-C", "Logger.Options.Verbosity=3"]  # 3: notices, errors and warnings
     return args
@@ -168,9 +175,30 @@ def _usb_wii_remotes():
     return usable, len(slots) - usable
 
 
+def _game_settings_overrides():
+    """The games whose own Dolphin settings choose their Wii Remotes, which wins over the command line:
+    [their GameSettings file names], for those that set any remote to something other than real."""
+    found = []
+    for folder in DOLPHIN_GAME_SETTINGS:
+        try:
+            files = sorted(folder.glob("*.ini"))
+        except OSError:
+            continue
+        for path in files:
+            sources = [ini.get_value(path, "Controls", f"WiimoteSource{n}") for n in range(4)]
+            if any(s is not None and s.strip() != REAL_WIIMOTE for s in sources):
+                config.log.warning("Dolphin game settings %s choose the Wii Remotes themselves: %s", path, sources)
+                found.append(path.name)
+    return found
+
+
 def _wii_remotes_running():
     """What the popup and the game page say during a Wii game: whether Dolphin can use a Wii Remote sensor
     on USB, so a remote that doesn't connect has a reason next to it."""
+    overrides = _game_settings_overrides()
+    if overrides:
+        return ("but Dolphin's own settings for " + ", ".join(overrides) + " choose emulated remotes, which "
+                "wins: clear Wii Remote 1-4 under the game's Properties in Dolphin (see Troubleshooting)")
     usable, blocked = _usb_wii_remotes()
     if blocked:
         config.log.warning("Wii Remote sensor on USB: Dolphin can open %d slot(s), not %d", usable, blocked)

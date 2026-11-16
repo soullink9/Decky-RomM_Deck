@@ -67,6 +67,9 @@ for that launch.
 - *on the USB sensor*: Dolphin can use the DolphinBar; press 1+2 (or the DolphinBar's sync button) on each remote.
 - *Dolphin isn't allowed to open the Wii Remote sensor on USB*: the system doesn't let apps use the DolphinBar's
   Wii Remote slots, so remotes on it can't connect. Remotes over Bluetooth still can.
+- *Dolphin's own settings for <game id>.ini choose emulated remotes*: that game has its own Wii Remote setting in
+  Dolphin (right-click the game, **Properties**), which wins over the preset. Clear Wii Remote 1-4 there, or set
+  them to Real Wii Remote.
 
 About half a minute in, a second popup says what RomM Deck found in the Dolphin that's actually running, then
 what Dolphin itself reported (the preset switches on Dolphin's Wii Remote messages for that game):
