@@ -47,7 +47,8 @@ flowchart LR
 
 The backend and launcher share state only through files in `~/homebrew/settings/romm-deck/` (see
 [State on disk](#state-on-disk)). Every write goes through `config.save` / `config.write_atomic`, which
-write a temporary file and rename it, so a crash never leaves half a file. Stores that both can change
+write a temporary file, flush it to the disk and rename it, so a crash never leaves half a file. The
+plugin's own stores are readable by your user only (0600). Stores that both can change
 at once are edited under a file lock (`config.editing`, `saves._locked`).
 
 ## Repository layout
@@ -72,6 +73,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `src/index.tsx` | The Quick Access panel and the plugin's frontend entry point |
 | `src/cards.ts` | Making Steam cards, and taking over existing ones (EmuDeck's) |
 | `src/current.ts` | Which game the user is on, so the panel can open on it |
+| `src/links.ts` | Which web pages the plugin may open: the RomM server's, and the sites RomM links games to |
 | `src/steampage.tsx` | RomM's details, screenshots, links and Activity on Steam's game pages |
 | `src/ui.tsx` | Small visual pieces: icons, covers, status lines |
 | `src/decky.ts` | The bridge to Decky Loader's and Steam's globals |

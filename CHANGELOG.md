@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.5.8 (2026-11-22)
+
+### Security
+
+Fixes from a security review. Nothing changes in how the plugin is used: plain `http` RomM servers on the home
+network keep working, and Steam launch options of taken-over cards still run exactly as Steam would run them.
+
+- The RomM token only goes to your RomM server. If RomM redirects a request to another host or port, the
+  request goes there without it. Redirects to anything but `http`/`https` are refused.
+- File names from RomM (games, Switch updates and DLC, BIOS files, single saves) must be plain names, with no
+  folders in them.
+- Zips from RomM are checked before anything is unpacked: absolute paths, `..`, links and special files, names
+  that appear twice, and anything that would land outside the game's folder stop the download. Zipped saves are
+  checked the same way before any of their files is used.
+- Downloads stop when they wouldn't fit on the disk (512 MB is always left free), and a zip must fit once
+  unpacked. JSON answers, cover art and screenshots, and save downloads have size limits.
+- The same game can't download twice at once.
+- The plugin's settings files (`settings.json` holds the token) are readable by your user only. Files written
+  by an older version are made private when the plugin starts.
+- Settings files and emulator settings are flushed to the disk before they replace the old ones, so a power
+  loss can't leave an empty file. An emulator's settings file keeps its permissions.
+- Saves are compared by SHA-256 instead of SHA-1. Saves synced by an older version aren't seen as changed: their
+  SHA-1 is still recognised, and replaced at their next sync.
+- Steam game page buttons open only your RomM server's pages, RetroAchievements, HowLongToBeat and YouTube, and
+  RomM's ids in those links are escaped.
+- The motion server ignores anything that doesn't come from the handheld itself.
+- The pairing code (or token) is cleared from the setup page once it's been used.
+
+### Development
+
+- GitHub's release workflow pins its actions to exact commits. Gitea's workflows use no actions.
+- esbuild is pinned to an exact version (0.28.2).
+- New frontend test: `tests/test_links.mjs`.
+
 ## 0.5.7 (2026-11-16)
 
 ### Controller presets

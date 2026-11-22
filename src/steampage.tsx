@@ -12,6 +12,7 @@
 // RetroAchievements unlocks, saves) and RomM links in place of Steam's store/community buttons.
 // Nothing is written to Steam's files; stop() puts every function back. The panel has an off switch.
 import { React, callable, addEventListener, removeEventListener, Focusable, Navigation } from "./decky";
+import { allowedLink } from "./links";
 import { Icon, IconName } from "./ui";
 
 declare const PLUGIN_NAME: string; // filled in from plugin.json by build.mjs
@@ -204,8 +205,12 @@ function logOnce(what: string, root: any) {
 
 // ---------- the Game Info buttons: RomM's links instead of Steam's store/community ones ----------
 
-/** Open a web page in Steam's own browser (Game Mode has no desktop browser to hand it to). */
-function openWeb(url: string) {
+/** Open a web page in Steam's own browser (Game Mode has no desktop browser to hand it to), if it's one the
+ * plugin may open: a page on the configured RomM server, or a site RomM links games to (see links.ts). */
+async function openWeb(url: string) {
+  let server = "";
+  try { server = (await callable<[], { url: string }>("status")()).url; } catch { /* no server: only the known sites */ }
+  if (!allowedLink(url, server)) return;
   try { if (Navigation?.NavigateToExternalWeb) return Navigation.NavigateToExternalWeb(url); } catch { /* next */ }
   try { w.SteamClient?.System?.OpenInSystemBrowser?.(url); } catch { /* nothing else to try */ }
 }

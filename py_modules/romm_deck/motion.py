@@ -24,7 +24,7 @@ for a device with right side R, top edge U and screen-front F:
 """
 import math
 import os
-import random
+import secrets
 import socket
 import struct
 import time
@@ -280,7 +280,7 @@ def serve(keep_going, sensor=None, rows=None, ready=None, rate=RATE):
     sock.setblocking(False)
     if ready:
         ready()
-    server_id, number, clients, checked = random.getrandbits(32), 0, {}, time.monotonic()
+    server_id, number, clients, checked = secrets.randbits(32), 0, {}, time.monotonic()
     try:
         while True:
             now = time.monotonic()
@@ -294,6 +294,8 @@ def serve(keep_going, sensor=None, rows=None, ready=None, rate=RATE):
                     data, addr = sock.recvfrom(1024)
                 except (BlockingIOError, InterruptedError):
                     break
+                if addr[0] != HOST:
+                    continue  # only emulators on this PC (the socket is bound to 127.0.0.1 anyway)
                 for reply in _answer(data, server_id):
                     if reply is None:
                         clients[addr] = now

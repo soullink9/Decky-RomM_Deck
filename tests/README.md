@@ -10,6 +10,7 @@ script that prints `PASS` or `FAIL` per check and exits non-zero if anything fai
 | `test_release.py` | The release scripts in `scripts/`: notes, zip check, the Decky store (merged with a fake official store), publishing to a fake Gitea server |
 | `test_cards.mjs` | Making and taking over Steam cards (`src/cards.ts`) |
 | `test_current.mjs` | Which game the panel opens on (`src/current.ts`) |
+| `test_links.mjs` | Which web pages the plugin opens (`src/links.ts`) |
 
 Helpers:
 

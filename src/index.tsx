@@ -9,6 +9,7 @@ import {
   staticClasses, Navigation, callable, addEventListener, removeEventListener, toast, useQuickAccessVisible,
 } from "./decky";
 import { addCard, removeCard, takeOver, takeOverAll, repairCards, cardIsGame } from "./cards";
+import { allowedLink } from "./links";
 import { currentGame } from "./current";
 import { Icon, Label, Cover, GameRow, Status, ago, GREEN, AMBER, GREY } from "./ui";
 import { start as startSteamPages, refresh as refreshSteamPages, setEnabled as showOnSteamPages } from "./steampage";
@@ -108,6 +109,7 @@ function Setup({ onDone }: { onDone: () => void }) {
   const connect = async () => {
     setMsg("Connecting…");
     const r = await api.connect(url, code);
+    setCode("");  // a code works once and a token shouldn't linger on screen: either way, it's done with
     if (r.ok) onDone();
     else setMsg(r.error || "Couldn't connect");
   };
@@ -676,7 +678,11 @@ function GamePage({ view, go }: { view: GamePageView; go: (p: Page) => void }) {
         </PanelSectionRow>
         <PanelSectionRow>
           <ButtonItem layout="below" description={`See its saves and states in RomM · RomM game #${game.id}`}
-            onClick={() => { Navigation.NavigateToExternalWeb(`${serverUrl}/rom/${game.id}`); Navigation.CloseSideMenus(); }}>
+            onClick={() => {
+              const page = `${serverUrl}/rom/${Number(game.id)}`;
+              if (allowedLink(page, serverUrl)) Navigation.NavigateToExternalWeb(page);
+              Navigation.CloseSideMenus();
+            }}>
             <Label icon="open">Open on RomM</Label>
           </ButtonItem>
         </PanelSectionRow>

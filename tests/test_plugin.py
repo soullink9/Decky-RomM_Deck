@@ -1,5 +1,5 @@
 """End-to-end test of the plugin against the fake RomM, in a fake home folder."""
-import asyncio, hashlib, json, os, shutil, subprocess, sys, tempfile, textwrap, time, types, zipfile, io
+import asyncio, hashlib, io, json, os, shutil, subprocess, sys, tempfile, textwrap, threading, time, types, zipfile
 from pathlib import Path
 
 SCRATCH = Path(__file__).parent  # this folder: the fake RomM and the motion client live here
@@ -1286,8 +1286,146 @@ async def test():
     check(SES.finish() == 1 and not SES.pending(), "a reused process number after a reboot doesn't block the session forever")
     other.kill(); other.wait(); await popups()
 
+    await hardening()
+
     await P.disconnect(); check(not (await P.status())["connected"], "disconnect")
     e = await P.collections(); check("error" in e, f"calls without connection return an error: {e}")
+
+async def hardening():
+    """The safety checks added after the security review (0.5.8)."""
+    import hashlib, stat as st_, zipfile, io
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from romm_deck import api, saves as S
+    seen = {}  # path -> Authorization header it arrived with
+
+    class Other(BaseHTTPRequestHandler):  # a server that isn't RomM
+        def log_message(self, *a): pass
+        def do_GET(self):
+            seen["other" + self.path] = self.headers.get("Authorization")
+            body = b"{}"
+            self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+    other = ThreadingHTTPServer(("127.0.0.1", 0), Other)
+    threading.Thread(target=other.serve_forever, daemon=True).start()
+
+    class Romm(BaseHTTPRequestHandler):  # "RomM", redirecting
+        def log_message(self, *a): pass
+        def do_GET(self):
+            seen[self.path] = self.headers.get("Authorization")
+            where = {"/away": f"http://127.0.0.1:{other.server_port}/stolen", "/stay": "/landing",
+                     "/file": "file:///etc/passwd"}.get(self.path)
+            if where:
+                self.send_response(302); self.send_header("Location", where); self.send_header("Content-Length", "0"); self.end_headers()
+                return
+            body = b'"' + b"x" * 100 + b'"' if self.path == "/big" else b"{}"
+            self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+    romm = ThreadingHTTPServer(("127.0.0.1", 0), Romm)
+    threading.Thread(target=romm.serve_forever, daemon=True).start()
+    c = api.RomM(f"http://127.0.0.1:{romm.server_port}", "secret-token")
+    c.get("/away")
+    check(seen.get("/away") == "Bearer secret-token" and "other/stolen" in seen and seen["other/stolen"] is None,
+          f"a redirect to another server doesn't get the token: {seen}")
+    c.get("/stay")
+    check(seen.get("/landing") == "Bearer secret-token", "a redirect within RomM keeps the token")
+    try:
+        c.get("/file"); ok = False
+    except api.RomMError:
+        ok = True
+    check(ok, "a redirect to a file: address is refused")
+    try:
+        c.fetch_bytes("/big", max_bytes=50); ok = False
+    except api.RomMError as e:
+        ok = "too big" in str(e)
+    check(ok and len(c.fetch_bytes("/big", max_bytes=200)) == 102, "fetch_bytes refuses a file over its size limit")
+    margin = api.DISK_MARGIN
+    api.DISK_MARGIN = 1 << 62
+    part = FAKE / "big.part"
+    try:
+        c.download("/big", part); ok = False
+    except api.RomMError as e:
+        ok = "free space" in str(e)
+    api.DISK_MARGIN = margin
+    check(ok and not part.exists(), "a download that doesn't fit on the disk stops, and leaves no partial file")
+    check(c.same_server(f"https://127.0.0.1:{romm.server_port}/x") and not c.same_server(f"http://127.0.0.1:{other.server_port}/x")
+          and not api.RomM("https://romm.lan").same_server("http://romm.lan/x"), "same_server: http->https upgrade only")
+    romm.shutdown(); other.shutdown()
+
+    # RomM's file names are bare names
+    bad = []
+    for name in ("../evil", "a/b.gba", "..", ".", "", "x\\y", "nul\0"):
+        try:
+            library.bare_name(name); bad.append(name)
+        except ValueError:
+            pass
+    check(not bad and library.bare_name("Pokemon Emerald (USA).gba") == "Pokemon Emerald (USA).gba", f"unsafe RomM file names refused: {bad}")
+
+    # zips from RomM are checked entry by entry before anything is written
+    def make_zip(entries):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for name, data, mode in entries:
+                info = zipfile.ZipInfo(name)
+                if mode:
+                    info.external_attr = mode << 16
+                z.writestr(info, data)
+        path = FAKE / "t.zip"; path.write_bytes(buf.getvalue()); return path
+    out = FAKE / "unzip-test"
+    for what, entries in {
+        "..": [("ok.txt", b"1", 0), ("../escaped.txt", b"x", 0)],
+        "absolute": [("/tmp/abs.txt", b"x", 0)],
+        "backslash ..": [("..\\escaped.txt", b"x", 0)],
+        "symlink": [("link", b"/etc/passwd", 0o120777)],
+        "twice": [("a.txt", b"1", 0), ("./a.txt", b"2", 0)],
+    }.items():
+        shutil.rmtree(out, ignore_errors=True)
+        try:
+            library.safe_extract(make_zip(entries), out); ok = False
+        except ValueError:
+            ok = True
+        check(ok and not (FAKE / "escaped.txt").exists() and not (out / "ok.txt").exists(), f"zip with {what} refused before writing anything")
+    shutil.rmtree(out, ignore_errors=True)
+    library.safe_extract(make_zip([("Disc/", b"", 0), ("Disc/1.cue", b"cue", 0o100644), ("game.m3u", b"Disc/1.cue", 0)]), out)
+    check((out / "Disc/1.cue").read_bytes() == b"cue" and (out / "game.m3u").exists(), "an ordinary zip still unpacks")
+
+    # save zips: keys checked before any is used
+    for what, entries in {"..": [("saves/../../x", b"x", 0)], "no folder label": [("x.sav", b"x", 0)],
+                          "absolute": [("/saves/x", b"x", 0)], "symlink": [("saves/l", b"/etc/passwd", 0o120777)]}.items():
+        try:
+            S._read_zip(make_zip(entries).read_bytes()); ok = False
+        except ValueError:
+            ok = True
+        check(ok, f"save zip with {what} refused")
+    check(S._read_zip(make_zip([("GC/USA/Card A/x.gci", b"g", 0)]).read_bytes()) == {"GC/USA/Card A/x.gci": b"g"}, "a good save zip reads")
+    check(S._unpack("../x.srm", b"x", "saves", {"saves": "saves"}) is None, "a single save named with a path is skipped")
+
+    # sync.json from before 0.5.8 remembers SHA-1s: an unchanged file still reads as unchanged
+    f = FAKE / "save.srm"; f.write_bytes(b"save-data")
+    old = hashlib.sha1(b"save-data").hexdigest(); now = S._hash_file(f)
+    check(len(now) == 64 and S._same(old, now, f) and S._same(now, now, f), "SHA-1 from an older sync.json still matches an unchanged save")
+    f.write_bytes(b"changed")
+    check(not S._same(old, S._hash_file(f), f) and not S._same(None, now, f), "...and a changed save doesn't")
+
+    # the stores are private; other files keep their permissions
+    mode = lambda p: p.stat().st_mode & 0o777
+    check(mode(config.SETTINGS_DIR / "settings.json") == 0o600, f"settings.json (the token) is 0600: {oct(mode(config.SETTINGS_DIR / 'settings.json'))}")
+    (config.SETTINGS_DIR / "settings.json").chmod(0o644); config.secure_stores()
+    check(mode(config.SETTINGS_DIR / "settings.json") == 0o600, "an older, readable settings.json is made private at start")
+    ini = FAKE / "emu.ini"; ini.write_text("a=1\n"); ini.chmod(0o644); config.write_atomic(ini, "a=2\n")
+    check(mode(ini) == 0o644 and ini.read_text() == "a=2\n" and not list(FAKE.glob(".emu.ini.*")), "an emulator's file keeps its permissions when rewritten")
+
+    # one download of a game at a time
+    with library._downloading(1):
+        try:
+            with library._downloading(1): ok = False
+        except ValueError:
+            ok = True
+        with library._downloading(2): pass
+    check(ok, "the same game can't download twice at once (another game can)")
+
+    # links for the Steam page's buttons: RomM's ids can't point them elsewhere
+    links = dict(metadata.links({"id": 3, "ra_id": "1/../../evil", "hltb_id": "2?x=y", "youtube_video_id": "a&b"}, "http://romm.lan"))
+    check(links["RomM"] == "http://romm.lan/rom/3" and links["RetroAchievements"] == "https://retroachievements.org/game/1%2F..%2F..%2Fevil"
+          and links["HowLongToBeat"].endswith("/game/2%3Fx%3Dy") and links["Trailer"].endswith("v=a%26b"), f"link ids are quoted: {links}")
+
 
 asyncio.run(test())
 print(f"\n{failures} failures")

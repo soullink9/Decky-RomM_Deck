@@ -13,7 +13,7 @@ anywhere except your handheld and your RomM server.
 
 Like any web request, these see your public IP address (your RomM server sees your local one if it's on your
 network). Nothing else about the handheld, its games or its sensors is sent anywhere. The motion server only
-listens on the handheld itself (`127.0.0.1`).
+listens on the handheld itself (`127.0.0.1`), and ignores anything from elsewhere.
 
 During a Wii game with **Use my real Wii Remotes** on, the plugin looks at the game's own processes on the
 handheld: Dolphin's command line, and which programs have the Wii Remote sensor open (only programs running as
@@ -22,8 +22,11 @@ you). What it finds goes into a popup and `launch.log`, and nowhere else.
 ## The RomM token
 
 - It's stored in `~/homebrew/settings/romm-deck/settings.json`, in plain text, like other Decky plugins'
-  settings. Anyone with access to your user account on the handheld can read it.
-- It's sent only to your RomM server, with each request.
+  settings (SteamOS has no keyring Decky plugins can use). The file is readable by your user only, but
+  anything running as your user can still read it.
+- It's sent only to your RomM server, with each request. If RomM redirects a request to another address (a
+  different host or port), the request goes there without the token. Plain `http` works, since most RomM
+  servers are on the home network; use `https` if your RomM is reachable from the internet.
 - The plugin never writes it to its logs. Check logs and screenshots for your RomM address anyway before
   sharing them.
 - Give it only the permissions in [Installation](Installation.md#the-romm-token). **Disconnect** on the home page
@@ -40,6 +43,19 @@ you). What it finds goes into a popup and `launch.log`, and nowhere else.
 
 It never deletes anything outside `Emulation/roms`, a whole platform folder, or a file that belongs to another
 game, and every file it deletes is listed in `~/homebrew/logs/romm-deck/removed.log`.
+
+## What it accepts from RomM
+
+The plugin trusts your RomM server with your library, but still checks what it sends before writing anything:
+
+- File names (games, updates, BIOS files, single saves) must be plain names, with no folders in them.
+- Zips (multi-disc games, zipped games, zipped saves) are checked entry by entry before anything is unpacked:
+  no absolute paths, no `..`, no links or special files, no name twice, nothing landing outside the game's
+  folder, and the unpacked size has to fit on the disk.
+- Downloads stop if they wouldn't fit on the disk (with 512 MB to spare). Other answers have size limits too.
+- One game downloads once at a time.
+- Buttons on a Steam game page only open your RomM server's pages, RetroAchievements, HowLongToBeat and
+  YouTube.
 
 ## Files on your device
 

@@ -5,6 +5,7 @@ can't be installed, and the game launcher runs on the system Python, which may n
 """
 import json
 import os
+import shutil
 import ssl
 import uuid
 import urllib.error
@@ -23,6 +24,37 @@ def _ssl_context():
         if os.path.exists(ca):
             return ssl.create_default_context(cafile=ca)
     return ssl.create_default_context()
+
+
+# Size limits on what RomM sends, so a broken or hostile server can't fill the memory or the disk.
+MAX_JSON = 256 * 1024 * 1024        # one JSON answer (a 10,000-game list with its files is far smaller)
+MAX_FETCH = 64 * 1024 * 1024        # a small file held in memory: cover art, a screenshot
+DISK_MARGIN = 512 * 1024 * 1024     # a download always leaves this much of the disk free
+
+
+def _origin(url):
+    """(scheme, host, port) of an address, with the default port filled in."""
+    u = urllib.parse.urlsplit(url)
+    return u.scheme.lower(), (u.hostname or "").lower(), u.port or {"http": 80, "https": 443}.get(u.scheme.lower())
+
+
+class _Redirects(urllib.request.HTTPRedirectHandler):
+    """Follows RomM's redirects, but only sends the token to RomM itself: a redirect to any other
+    address (another host or port) goes there without it. Only http and https are followed.
+    A move from http to https on the same host (a reverse proxy upgrading the connection) keeps it."""
+
+    def __init__(self, client):
+        super().__init__()
+        self.client = client
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        """The next request of a redirect, with the token only if it still goes to RomM."""
+        if urllib.parse.urlsplit(newurl).scheme.lower() not in ("http", "https"):
+            raise urllib.error.HTTPError(newurl, code, "RomM redirected to a non-web address", headers, fp)
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and self.client.token and self.client.same_server(newurl):
+            new.add_unredirected_header("Authorization", f"Bearer {self.client.token}")
+        return new
 
 
 class RomMError(Exception):
@@ -44,6 +76,15 @@ class RomM:
         self.token = token
         self.timeout = 30  # seconds; the launcher lowers this so a dead server can't stall a game
         self.ssl = _ssl_context()
+        self._opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self.ssl), _Redirects(self))
+
+    def same_server(self, url):
+        """Is `url` on this RomM server? Same host and port; http may become https, never the reverse."""
+        mine, theirs = _origin(self.url), _origin(url)
+        if theirs == mine:
+            return True
+        upgraded = mine[0] == "http" and theirs[0] == "https" and mine[1] == theirs[1] and theirs[2] in (mine[2], 443)
+        return upgraded
 
     @classmethod
     def from_settings(cls):
@@ -63,25 +104,44 @@ class RomM:
             url += "?" + urllib.parse.urlencode({k: v for k, v in params.items() if v is not None}, doseq=True)
         req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
         if self.token:
-            req.add_header("Authorization", f"Bearer {self.token}")
+            # "unredirected": a redirect doesn't copy it on its own; _Redirects adds it back for RomM only
+            req.add_unredirected_header("Authorization", f"Bearer {self.token}")
         try:
-            return urllib.request.urlopen(req, timeout=timeout or self.timeout, context=self.ssl)
+            return self._opener.open(req, timeout=timeout or self.timeout)
         except urllib.error.HTTPError as e:
-            detail = e.read().decode(errors="ignore")[:200]
+            detail = e.read(4096).decode(errors="ignore")[:200]
             raise RomMError(f"RomM said {e.code}: {detail}", e.code) from None
         except urllib.error.URLError as e:
             raise RomMError(f"Can't reach RomM: {e.reason}") from None
 
+    @staticmethod
+    def _read(r, limit, what="RomM's answer"):
+        """A whole response, refusing one bigger than `limit` bytes (by its stated size or what arrives)."""
+        stated = r.headers.get("Content-Length")
+        if stated and stated.isdigit() and int(stated) > limit:
+            raise RomMError(f"{what} is too big ({int(stated) // 1048576} MB)")
+        data = r.read(limit + 1)
+        if len(data) > limit:
+            raise RomMError(f"{what} is too big (over {limit // 1048576} MB)")
+        return data
+
+    def _json(self, r):
+        """A JSON answer, within MAX_JSON."""
+        try:
+            return json.loads(self._read(r, MAX_JSON))
+        except ValueError:
+            raise RomMError("RomM's answer isn't valid JSON") from None
+
     def get(self, path, timeout=None, **params):
         """GET a JSON endpoint; keyword arguments become the query string."""
         with self._open("GET", path, params, timeout=timeout) as r:
-            return json.load(r)
+            return self._json(r)
 
     def post_json(self, path, data):
         """POST `data` as JSON and return RomM's JSON answer."""
         body = json.dumps(data).encode()
         with self._open("POST", path, body=body, headers={"Content-Type": "application/json"}) as r:
-            return json.load(r)
+            return self._json(r)
 
     def upload(self, path, params, field, filename, data):
         """POST one file as multipart/form-data (how RomM takes save and state uploads).
@@ -93,25 +153,50 @@ class RomM:
         ).encode() + data + f"\r\n--{boundary}--\r\n".encode()
         headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
         with self._open("POST", path, params, body=body, headers=headers, timeout=300) as r:
-            return json.load(r)
+            return self._json(r)
 
     def download(self, path, dest, progress=None, timeout=60):
-        """Stream a file to `dest`. progress(done_bytes, total_bytes) is called as it goes."""
-        with self._open("GET", path, timeout=timeout) as r, open(dest, "wb") as f:
-            total = int(r.headers.get("Content-Length") or 0)
-            done = 0
-            while chunk := r.read(1024 * 1024):
-                f.write(chunk)
-                done += len(chunk)
-                if progress:
-                    progress(done, total)
+        """Stream a file to `dest`. progress(done_bytes, total_bytes) is called as it goes.
+        Stops (and deletes the partial file) if it wouldn't fit on the disk with DISK_MARGIN to spare,
+        or if RomM sends more than it said it would."""
+        dest = os.fspath(dest)
+        folder = os.path.dirname(dest) or "."
+        with self._open("GET", path, timeout=timeout) as r:
+            self._stream(r, dest, folder, progress)
 
-    def fetch_bytes(self, url_or_path, timeout=None):
-        """A small file (cover art, a screenshot, a save) as bytes. RomM gives resource paths
-        both with and without the leading slash, so either is accepted."""
+    @staticmethod
+    def _stream(r, dest, folder, progress):
+        """download()'s copying, from the open response `r` into `dest` (deleted again on any failure)."""
+        try:
+            with open(dest, "wb") as f:
+                stated = r.headers.get("Content-Length")
+                total = int(stated) if stated and stated.isdigit() else 0
+                check_free_space(folder, total)
+                done, checked = 0, 0
+                while chunk := r.read(1024 * 1024):
+                    done += len(chunk)
+                    if total and done > total:
+                        raise RomMError(f"RomM sent more than the {total} bytes it announced")
+                    if done - checked >= 256 * 1024 * 1024:  # size unknown, or the disk filling up meanwhile
+                        check_free_space(folder, len(chunk))
+                        checked = done
+                    f.write(chunk)
+                    if progress:
+                        progress(done, total)
+        except BaseException:
+            try:
+                os.unlink(dest)
+            except OSError:
+                pass
+            raise
+
+    def fetch_bytes(self, url_or_path, timeout=None, max_bytes=MAX_FETCH):
+        """A small file (cover art, a screenshot, a save) as bytes, up to `max_bytes`. RomM gives
+        resource paths both with and without the leading slash, so either is accepted. It's always
+        fetched from RomM's own address, whatever the path says."""
         path = url_or_path if url_or_path.startswith("/") else "/" + url_or_path
         with self._open("GET", path, timeout=timeout) as r:
-            return r.read()
+            return self._read(r, max_bytes, "The file from RomM")
 
     # ---------- RomM endpoints we use ----------
 
@@ -162,3 +247,14 @@ class RomM:
     def firmware(self, platform_id):
         """BIOS and firmware files RomM holds for a platform."""
         return self.get("/api/firmware", platform_id=platform_id)
+
+
+def check_free_space(folder, needed):
+    """RomMError unless `needed` more bytes fit in `folder`'s disk with DISK_MARGIN to spare."""
+    try:
+        free = shutil.disk_usage(folder).free
+    except OSError:
+        return  # can't tell: let the write itself fail if it must
+    if needed + DISK_MARGIN > free:
+        raise RomMError(f"Not enough free space: needs {(needed + DISK_MARGIN) // 1048576} MB, "
+                        f"{free // 1048576} MB free")

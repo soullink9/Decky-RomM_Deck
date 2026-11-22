@@ -60,7 +60,7 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Frontend tests
-        run: node tests/test_cards.mjs && node tests/test_current.mjs
+        run: node tests/test_cards.mjs && node tests/test_current.mjs && node tests/test_links.mjs
 
       - name: Build romm-deck.zip, and check Decky can install it
         run: npm run package

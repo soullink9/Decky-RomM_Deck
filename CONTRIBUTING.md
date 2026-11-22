@@ -65,6 +65,7 @@ You need Node.js and Python 3.10 or newer.
   store (merged with a fake official store), and publishing on Gitea against a fake Gitea server.
 - `tests/test_cards.mjs`, `tests/test_current.mjs`: the frontend's Steam card handling, against a stand-in for
   Steam.
+- `tests/test_links.mjs`: which web pages the frontend agrees to open.
 
 On Gitea, every push runs the same suites (`.gitea/workflows/test.yml`): the backend on Python 3.10, the frontend
 and the zip on Node 22.

@@ -202,14 +202,17 @@ def _steam_features(modes):
 def links(rom, base_url=""):
     """[label, address] for the buttons under Game Info: the game in RomM, and the sites RomM matched it to."""
     out = []
+    # (RomM's ids go into fixed addresses, quoted, so an odd id can't point a button anywhere else)
+    def part(value):
+        return urllib.parse.quote(str(value), safe="")
     if base_url and rom.get("id"):
-        out.append(["RomM", f"{base_url.rstrip('/')}/rom/{rom['id']}"])
+        out.append(["RomM", f"{base_url.rstrip('/')}/rom/{part(rom['id'])}"])
     if rom.get("ra_id"):
-        out.append(["RetroAchievements", f"https://retroachievements.org/game/{rom['ra_id']}"])
+        out.append(["RetroAchievements", f"https://retroachievements.org/game/{part(rom['ra_id'])}"])
     if rom.get("hltb_id"):
-        out.append(["HowLongToBeat", f"https://howlongtobeat.com/game/{rom['hltb_id']}"])
+        out.append(["HowLongToBeat", f"https://howlongtobeat.com/game/{part(rom['hltb_id'])}"])
     if rom.get("youtube_video_id"):
-        out.append(["Trailer", f"https://www.youtube.com/watch?v={urllib.parse.quote(str(rom['youtube_video_id']))}"])
+        out.append(["Trailer", f"https://www.youtube.com/watch?v={part(rom['youtube_video_id'])}"])
     return out
 
 

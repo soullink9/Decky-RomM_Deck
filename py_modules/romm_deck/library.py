@@ -1,4 +1,6 @@
 """Games on this PC: download, recognise games already there, launch, and remove; BIOS files."""
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -7,10 +9,12 @@ import shutil
 import time
 import unicodedata
 import urllib.parse
+import stat
 import zipfile
 from pathlib import Path
 
 from . import config, metadata, saves, systems
+from .api import check_free_space
 
 RYUJINX_SYSTEM_DIRS = [
     config.HOME / ".var/app/io.github.ryubing.Ryujinx/config/Ryujinx/system",  # Ryubing flatpak
@@ -84,26 +88,33 @@ def _same_game(candidates, old):
 
 def install(client, rom_id, progress=None):
     """Download a rom into its EmuDeck folder. Returns the installed.json entry."""
+    with _downloading(rom_id):
+        return _install(client, rom_id, progress)
+
+
+def _install(client, rom_id, progress=None):
+    """install(), once nothing else is downloading this game."""
     rom = client.rom(rom_id)
     system = systems.for_rom(rom)
     exts = system["exts"] if system else []
-    folder = config.emudeck()["roms"] / (system["folder"] if system else rom["platform_fs_slug"])
+    folder = config.emudeck()["roms"] / (system["folder"] if system else bare_name(rom["platform_fs_slug"], "platform folder"))
     folder.mkdir(parents=True, exist_ok=True)
 
     multi = rom.get("has_multiple_files")
     if multi and extra_files(rom) and extras_dir():  # Switch: updates & DLC go to their own folder
         return _install_split(client, rom, folder, progress)
 
+    fs_name = bare_name(rom["fs_name"])
     tmp = folder / f".romm-{rom_id}.part"
-    client.download(f"/api/roms/{rom_id}/content/{urllib.parse.quote(rom['fs_name'])}", tmp, progress)
+    client.download(f"/api/roms/{rom_id}/content/{urllib.parse.quote(fs_name)}", tmp, progress)
 
     # RomM sends multi-file games (multi-disc, PS3 folders...) as one zip with an .m3u.
     # Single zipped roms are unpacked too, unless the emulator reads zips itself.
     unzip = multi or (system and rom["fs_extension"].lower() == "zip" and "zip" not in exts)
     if multi:
-        dest = folder / rom["fs_name"]  # a folder named like RomM's entry
+        dest = folder / fs_name  # a folder named like RomM's entry
     elif unzip:
-        dest = folder / rom["fs_name_no_ext"]  # the zip's contents, in a folder without ".zip"
+        dest = folder / bare_name(rom["fs_name_no_ext"])  # the zip's contents, in a folder without ".zip"
     else:
         dest = folder / _file_name(rom)
     if dest.exists():
@@ -113,15 +124,87 @@ def install(client, rom_id, progress=None):
             raise ValueError(f"Not downloaded: {dest.name} is already there and {problem}")
         _remove_path(dest)
     if unzip and zipfile.is_zipfile(tmp):
-        with zipfile.ZipFile(tmp) as z:
-            z.extractall(dest)  # extractall refuses absolute paths and ".." on its own
-        tmp.unlink()
+        try:
+            safe_extract(tmp, dest)
+        except BaseException:
+            shutil.rmtree(dest, ignore_errors=True)  # (a folder this download just made)
+            raise
+        finally:
+            tmp.unlink(missing_ok=True)
     else:
         tmp.replace(dest)
 
     with config.editing("installed") as games:
         games[str(rom_id)] = game = _entry(rom, dest)
     return game
+
+
+@contextlib.contextmanager
+def _downloading(rom_id):
+    """Held while one game downloads, so the same game never downloads twice at once (the panel
+    asked twice, or for the game and its updates together): the second one stops with a message."""
+    folder = config.SETTINGS_DIR / "locks"
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / f"download-{int(rom_id)}.lock", "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError("This game is already downloading") from None
+        yield
+
+
+def bare_name(name, what="file name"):
+    """A file name RomM gave, checked to be just a name: no folders in it, so it can't put
+    anything outside the folder it's meant for. ValueError if it isn't."""
+    name = str(name or "")
+    if not name or name in (".", "..") or "/" in name or "\\" in name or "\0" in name:
+        raise ValueError(f"RomM gave an unusable {what}: {name!r}")
+    return name
+
+
+MAX_UNPACKED = 1024 ** 4  # a zip that says it holds more than 1 TB is broken, whatever the disk has
+
+
+def safe_extract(zip_path, dest):
+    """Unpack a zip from RomM into the new folder `dest`, checking every entry first: no absolute
+    paths, no "..", no links or device files, no name twice, nothing landing outside `dest`, and the
+    whole unpacked size must fit on the disk. Any problem stops it before anything is written."""
+    dest = Path(dest)
+    with zipfile.ZipFile(zip_path) as z:
+        entries, seen, total = [], set(), 0
+        for info in z.infolist():
+            name = info.filename
+            parts = [p for p in re.split(r"[/\\]", name) if p not in ("", ".")]
+            if not parts:
+                continue  # the zip's own top folder ("./")
+            if name.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", name) or ".." in parts or "\0" in name:
+                raise ValueError(f"The download has an unsafe file in it: {name!r}")
+            kind = stat.S_IFMT(info.external_attr >> 16)
+            if kind and kind not in (stat.S_IFREG, stat.S_IFDIR):
+                raise ValueError(f"The download has a link or special file in it: {name!r}")
+            key = "/".join(parts)
+            if key in seen:
+                raise ValueError(f"The download has {name!r} in it twice")
+            seen.add(key)
+            total += info.file_size
+            entries.append((info, name.replace("\\", "/")))
+        if total > MAX_UNPACKED:
+            raise ValueError("The download says it unpacks to more than 1 TB")
+        dest.mkdir(parents=True, exist_ok=True)
+        check_free_space(dest, total)
+        root = dest.resolve()
+        for info, name in entries:
+            target = (root / name).resolve()
+            if target != root and not target.is_relative_to(root):
+                raise ValueError(f"The download has a file that would land outside its folder: {name!r}")
+            if info.is_dir() or name.endswith("/"):
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            # O_NOFOLLOW + O_EXCL: never write through a link, never over something already there
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666)
+            with z.open(info) as src, os.fdopen(fd, "wb") as out:
+                shutil.copyfileobj(src, out, 1024 * 1024)  # (zipfile stops at the entry's stated size)
 
 
 # ---------- Switch updates & DLC ----------
@@ -162,7 +245,7 @@ def _install_split(client, rom, folder, progress):
         raise ValueError("RomM doesn't say which of this game's files is the game itself")
     overall = _OverallProgress(progress, game_files + extra_files(rom))
     for f in game_files:
-        dest = folder / f["file_name"]
+        dest = folder / bare_name(f["file_name"])
         if dest.exists():
             problem = _not_this_game(dest, rom["id"])
             if problem:
@@ -197,10 +280,11 @@ class _OverallProgress:
 
 def download_extras(client, rom_id, progress=None):
     """Get a game's updates and DLC (for a game that's already on the PC). Returns how many."""
-    rom = client.rom(rom_id)
-    if str(rom_id) not in installed():
-        raise ValueError("Download the game first")
-    return _get_extras(client, rom, _OverallProgress(progress, extra_files(rom)))
+    with _downloading(rom_id):
+        rom = client.rom(rom_id)
+        if str(rom_id) not in installed():
+            raise ValueError("Download the game first")
+        return _get_extras(client, rom, _OverallProgress(progress, extra_files(rom)))
 
 
 def _get_extras(client, rom, overall):
@@ -212,7 +296,7 @@ def _get_extras(client, rom, overall):
     folder.mkdir(parents=True, exist_ok=True)
     saved = []
     for f in extra_files(rom):
-        dest = folder / f["file_name"]
+        dest = folder / bare_name(f["file_name"])
         already_there = dest.is_file() and dest.stat().st_size == f["file_size_bytes"]
         if not already_there:
             _download_file(client, rom, f, dest, overall.update)
@@ -228,8 +312,8 @@ def _get_extras(client, rom, overall):
 
 def _download_file(client, rom, f, dest, progress):
     """One file of a multi-file game (RomM sends just that file when asked for its id)."""
-    tmp = dest.parent / f".romm-{rom['id']}-{f['id']}.part"
-    client.download(f"/api/roms/{rom['id']}/content/{urllib.parse.quote(f['file_name'])}?file_ids={f['id']}",
+    tmp = dest.parent / f".romm-{int(rom['id'])}-{int(f['id'])}.part"
+    client.download(f"/api/roms/{rom['id']}/content/{urllib.parse.quote(dest.name)}?file_ids={int(f['id'])}",
                     tmp, progress, timeout=120)
     tmp.replace(dest)
 
@@ -240,8 +324,8 @@ def _file_name(rom):
     file's own name is used instead."""
     files = [f for f in rom.get("files") or [] if not f["file_name"].lower().endswith(".m3u")]
     if len(files) == 1 and Path(files[0]["file_name"]).suffix:
-        return files[0]["file_name"]
-    return rom["fs_name"]
+        return bare_name(files[0]["file_name"])
+    return bare_name(rom["fs_name"])
 
 
 def find_existing(rom_list):
@@ -597,8 +681,10 @@ def install_firmware(client, platform_id):
     bios.mkdir(parents=True, exist_ok=True)
     names = []
     for fw in client.firmware(platform_id):
-        dest = bios / fw["file_name"]
-        client.download(f"/api/firmware/{fw['id']}/content/{urllib.parse.quote(fw['file_name'])}", dest)
+        dest = bios / bare_name(fw["file_name"], "BIOS file name")
+        tmp = bios / f".romm-bios-{int(fw['id'])}.part"
+        client.download(f"/api/firmware/{int(fw['id'])}/content/{urllib.parse.quote(dest.name)}", tmp)
+        tmp.replace(dest)
         if dest.suffix == ".keys":  # Switch keys belong in Ryujinx's own system folder
             for d in RYUJINX_SYSTEM_DIRS:
                 if d.parent.exists():

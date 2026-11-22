@@ -37,6 +37,7 @@ class Plugin:
     async def _main(self):
         """Decky calls this when the plugin loads."""
         self.loop = asyncio.get_running_loop()
+        config.secure_stores()  # the token in settings.json is for this user's eyes only
         self.downloading = {}  # rom_id -> percent
         self.download_names = {}  # rom_id -> what the home page calls it while it downloads
         self._cover_failed = set()  # games whose missing cover was already logged

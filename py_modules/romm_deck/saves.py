@@ -19,6 +19,7 @@ import hashlib
 import io
 import os
 import re
+import stat
 import struct
 import time
 import zipfile
@@ -30,6 +31,8 @@ from . import config, systems
 KINDS = ("saves", "states")
 UPLOAD_FIELD = {"saves": "saveFile", "states": "stateFile"}  # the form field RomM's upload expects
 MAX_FILE = 512 * 1024 * 1024  # skip anything bigger than this (disk images, not saves)
+MAX_DOWNLOAD = 2 * 1024 ** 3   # the largest save or state download from RomM (a zip of a game's files)
+MAX_UNPACKED = 4 * 1024 ** 3   # ...and the most a zip of saves may unpack to
 
 # Sub-folders of Emulation/saves/<emu> that aren't game saves
 SKIP = {"system", "system_saves", "trophy", "profiles", "screenshots", "cheats", "textures"}
@@ -255,20 +258,20 @@ def not_on_romm(client, rom_id, game):
         entry = _entry(state, rom_id, emu_for(game))
         _claim_by_name(entry, folders, game)
         _claim_switch(entry, folders, _switch_title(client, rom_id, game))
-        local = {}  # key -> sha1 of the file on this PC (None: too big to sync, so never "safe")
+        local = {}  # key -> hash of the file on this PC (None: too big to sync, so never "safe")
         for kind in KINDS:
             for k in entry["files"][kind]:
                 p = _path(where, k)
                 if p is not None and p.is_file():
-                    local[k] = _sha1(p) if _usable(p) else None
-    remote = {}  # key -> sha1 of RomM's copy, after unpacking zips the same way a pull would
+                    local[k] = _hash_file(p) if _usable(p) else None
+    remote = {}  # key -> hash of RomM's copy, after unpacking zips the same way a pull would
     for kind in KINDS:
         chosen, _ = _choose(client.assets(kind, rom_id), kind, entry["emu"], _game_stem(game))
         for item, local_name in chosen:
-            data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120)
+            data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120, max_bytes=MAX_DOWNLOAD)
             files = _unpack(item["file_name"], data, kind, main, local_name) or {}
             for key, blob in files.items():
-                remote[key] = hashlib.sha1(blob).hexdigest()
+                remote[key] = _hash(blob)
     return [k for k, h in local.items() if h is None or remote.get(k) != h]
 
 
@@ -372,11 +375,11 @@ def _push(client, rom_id, entry, where, main, force=False):
     count = 0
     for kind in KINDS:
         keys = [k for k in entry["files"][kind] if _usable(_path(where, k))]
-        hashes = {k: _sha1(_path(where, k)) for k in keys}
-        changed = keys if force else [k for k in keys if entry["hashes"].get(k) != hashes[k]]
+        hashes = {k: _hash_file(_path(where, k)) for k in keys}
+        changed = keys if force else [k for k in keys if not _same(entry["hashes"].get(k), hashes[k], _path(where, k))]
         if not changed:
             continue
-        # {name on RomM: {file key: sha1}} for what we're about to upload. One file each when the
+        # {name on RomM: {file key: hash}} for what we're about to upload. One file each when the
         # emulator keeps a flat folder; otherwise one zip with ALL the game's files, not just the
         # changed ones, because a zip on RomM replaces the previous one entirely.
         if _is_flat(keys, main.get(kind)):
@@ -404,12 +407,11 @@ def _backup_server_copies(client, rom_id, entry, kind, uploads):
         name = item["file_name"]
         if item.get("emulator") != entry["emu"] or name not in uploads:
             continue
-        data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120)
+        data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120, max_bytes=MAX_DOWNLOAD)
         if name.endswith(".romm.zip"):
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                theirs = {n: hashlib.sha1(z.read(n)).hexdigest() for n in z.namelist() if not n.endswith("/")}
+            theirs = {n: _hash(blob) for n, blob in _read_zip(data).items()}
         else:
-            theirs = {next(iter(uploads[name])): hashlib.sha1(data).hexdigest()}
+            theirs = {next(iter(uploads[name])): _hash(data)}
         if theirs != uploads[name]:
             _upload(client, rom_id, entry, kind, f"backup-{time.strftime('%Y%m%d-%H%M%S')}-{name}", data, track=False)
 
@@ -455,7 +457,7 @@ def _pull(client, rom_id, entry, where, main, force=False, stem=None):
             name, stamp = item["file_name"], item["updated_at"]
             if entry["server"][kind].get(name) == stamp and not force:
                 continue  # we've already got this one
-            data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120)
+            data = client.fetch_bytes(f"/api/{kind}/{item['id']}/content", timeout=120, max_bytes=MAX_DOWNLOAD)
             files = _unpack(name, data, kind, main, local_name)
             if files is None:
                 continue  # a single file, but this emulator has no folder of that kind here
@@ -477,22 +479,59 @@ def _unpack(name, data, kind, main, local_name=None):
     in the emulator's main folder for that kind, under `local_name` if given. None if there's no
     such folder on this PC."""
     if name.endswith(".romm.zip"):
-        with zipfile.ZipFile(io.BytesIO(data)) as z:
-            return {n: z.read(n) for n in z.namelist() if not n.endswith("/")}
+        return _read_zip(data)
     if kind in main:
-        return {f"{main[kind]}/{local_name or name}": data}
+        file_name = local_name or name
+        if not _bare(file_name):
+            config.log.warning("Skipped RomM's %s %r: not a plain file name", kind, file_name)
+            return None
+        return {f"{main[kind]}/{file_name}": data}
     return None
+
+
+def _bare(name):
+    """Is this just a file name (no folders, nothing odd), safe to save into a folder as it is?"""
+    return bool(name) and name not in (".", "..") and not re.search(r"[/\\\0]", name)
+
+
+def _read_zip(data):
+    """A zip of saves (made by _zip) as {file key: bytes}, checking every entry before reading any:
+    a key is "<folder label>/<path>" with no absolute path, "..", backslash or empty part, no link or
+    special file, no key twice, no file over MAX_FILE and no more than MAX_UNPACKED in all.
+    ValueError if anything's wrong: such a zip didn't come from RomM Deck, so none of it is used."""
+    out, total = {}, 0
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        infos = [i for i in z.infolist() if not i.filename.endswith("/")]
+        for info in infos:
+            key = info.filename
+            parts = key.split("/")
+            if len(parts) < 2 or any(p in ("", ".", "..") for p in parts) or re.search(r"[\\\0]", key):
+                raise ValueError(f"A save zip from RomM has an unsafe file in it: {key!r}")
+            kind = stat.S_IFMT(info.external_attr >> 16)
+            if kind and kind != stat.S_IFREG:
+                raise ValueError(f"A save zip from RomM has a link or special file in it: {key!r}")
+            if key in out:
+                raise ValueError(f"A save zip from RomM has {key!r} in it twice")
+            if info.file_size > MAX_FILE:
+                raise ValueError(f"A save zip from RomM has a file too big to be a save: {key!r}")
+            total += info.file_size
+            if total > MAX_UNPACKED:
+                raise ValueError("A save zip from RomM unpacks to more than 4 GB")
+            out[key] = None
+        for info in infos:
+            out[info.filename] = z.read(info)  # (zipfile stops at the entry's stated size)
+    return out
 
 
 def _changed_since_sync(entry, where, keys):
     """Has any of these files on this PC changed since the last sync?"""
-    return any(entry["hashes"].get(k) != _sha1(_path(where, k)) for k in keys)
+    return any(not _same(entry["hashes"].get(k), _hash_file(_path(where, k)), _path(where, k)) for k in keys)
 
 
 def _back_up_local(client, rom_id, entry, kind, name, files, local, where):
     """Before RomM's copy replaces this PC's (force pull): upload this PC's copy as backup-<time>-<name>,
     if it differs at all."""
-    differs = [k for k in local if _sha1(_path(where, k)) != hashlib.sha1(files[k]).hexdigest()]
+    differs = [k for k in local if _hash_file(_path(where, k)) != _hash(files[k])]
     if not differs:
         return
     if name.endswith(".romm.zip"):
@@ -535,7 +574,7 @@ def _write_pulled(entry, where, main, kind, files):
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(blob)
-        entry["hashes"][key] = hashlib.sha1(blob).hexdigest()
+        entry["hashes"][key] = _hash(blob)
         if key not in entry["files"][kind]:
             entry["files"][kind].append(key)
 
@@ -659,7 +698,7 @@ def _entry(state, rom_id, emu):
     return state.setdefault(str(rom_id), {
         "emu": emu,
         "files": {k: [] for k in KINDS},   # "label/path" keys that belong to this game
-        "hashes": {},                      # sha1 of each file at the last sync
+        "hashes": {},                      # SHA-256 of each file at the last sync (SHA-1 before 0.5.8)
         "server": {k: {} for k in KINDS},  # RomM file name -> updated_at we last saw
     })
 
@@ -703,13 +742,29 @@ def _zip(where, keys):
     return buf.getvalue()
 
 
-def _sha1(path):
-    """A file's SHA-1, read in 1 MB pieces (a Switch save folder can be large)."""
-    h = hashlib.sha1()
+def _hash(data):
+    """The SHA-256 of some bytes, as hex: how saves are compared."""
+    return hashlib.sha256(data).hexdigest()
+
+
+def _hash_file(path, algorithm="sha256"):
+    """A file's hash (SHA-256 unless asked for another), read in 1 MB pieces (a Switch save folder can be large)."""
+    h = hashlib.new(algorithm)
     with open(path, "rb") as f:
         while chunk := f.read(1024 * 1024):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _same(remembered, current, path):
+    """Is the file at `path` (whose SHA-256 is `current`) still the one remembered at the last sync?
+    sync.json from before 0.5.8 remembers SHA-1s (40 hex digits): those are compared as SHA-1, so an
+    update doesn't make every save look changed. The next sync of a file remembers its SHA-256."""
+    if not remembered:
+        return False
+    if len(remembered) == 40:
+        return _hash_file(path, "sha1") == remembered
+    return remembered == current
 
 
 def _timestamp(iso):

@@ -43,23 +43,63 @@ def load(name, default=None):
 
 
 def save(name, data):
-    """Write settings/<name>.json in one step (see write_atomic)."""
+    """Write settings/<name>.json in one step (see write_atomic). Readable by this user only:
+    settings.json holds the RomM token, and the rest is nobody else's business either."""
     SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    write_atomic(SETTINGS_DIR / f"{name}.json", json.dumps(data, indent=2))
+    write_atomic(SETTINGS_DIR / f"{name}.json", json.dumps(data, indent=2), mode=0o600)
 
 
-def write_atomic(path, content):
-    """Write a file (text or bytes) in one step: to a temporary file next to it first, then moved
-    into place. A crash or power loss leaves either the old file or the new one, never half of one,
-    which matters for the plugin's own stores and for emulator settings it changes.
-    The temporary name is unique per process and thread, so two writers never share it."""
+def secure_stores():
+    """Make the stores written before 0.5.8 (readable by everyone) private, like save() makes new ones."""
+    try:
+        for f in SETTINGS_DIR.glob("*.json"):
+            if f.is_file() and not f.is_symlink() and f.stat().st_mode & 0o077:
+                f.chmod(0o600)
+    except OSError:
+        pass  # (the next save fixes it anyway)
+
+
+def write_atomic(path, content, mode=None):
+    """Write a file (text or bytes) in one step: to a temporary file next to it first, flushed to the
+    disk, then moved into place. A crash or power loss leaves either the old file or the new one,
+    never half of one, which matters for the plugin's own stores and for emulator settings it changes.
+    The temporary name is unique per process and thread, so two writers never share it.
+    `mode`: the file's permissions; by default an existing file keeps its own, a new one gets the usual."""
     path = Path(path)
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    if isinstance(content, bytes):
-        tmp.write_bytes(content)
-    else:
-        tmp.write_text(content, encoding="utf-8")
-    tmp.replace(path)
+    data = content if isinstance(content, bytes) else content.encode("utf-8")
+    if mode is None:
+        try:
+            mode = path.stat().st_mode & 0o7777
+        except OSError:
+            pass  # a new file: what the umask allows
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600 if mode is not None else 0o666)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            if mode is not None:
+                os.fchmod(f.fileno(), mode)
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    _fsync_folder(path.parent)
+
+
+def _fsync_folder(folder):
+    """Make a rename in `folder` reach the disk (some file systems don't promise it otherwise)."""
+    try:
+        fd = os.open(folder, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass  # not supported here (some network or FUSE file systems)
+    finally:
+        os.close(fd)
 
 
 @contextlib.contextmanager
