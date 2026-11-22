@@ -1,16 +1,16 @@
 {
   "name": "romm-deck",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Decky Loader plugin: download games from your RomM server into EmuDeck, and sync saves and save states both ways",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "package": "node build.mjs && sh package.sh",
-    "test": "python3 tests/test_plugin.py && python3 tests/test_motion.py && python3 tests/test_release.py && node tests/test_cards.mjs && node tests/test_current.mjs"
+    "test": "python3 tests/test_plugin.py && python3 tests/test_motion.py && python3 tests/test_release.py && node tests/test_cards.mjs && node tests/test_current.mjs && node tests/test_links.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.28.0"
+    "esbuild": "0.28.2"
   },
   "license": "BSD-3-Clause"
 }
