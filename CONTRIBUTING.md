@@ -68,7 +68,7 @@ You need Node.js and Python 3.10 or newer.
 - `tests/test_links.mjs`: which web pages the frontend agrees to open.
 
 On Gitea, every push runs the same suites (`.gitea/workflows/test.yml`): the backend on Python 3.10, the frontend
-and the zip on Node 22.
+and the zip on Node 26.
 
 The tests can't prove the plugin works inside real Steam and Decky, so try a change on a handheld too.
 See [tests/README.md](tests/README.md).
@@ -133,7 +133,7 @@ repository as a whole. One logical change per commit.
    the mirror catches up later; the Gitea release is already done.
 
 The Gitea workflows use no actions (`actions/checkout` and the like download from GitHub): each job runs in a
-plain image from Docker Hub (`python:3.10-bookworm`, `node:22-bookworm`) and fetches the code from Gitea with git,
+plain image from Docker Hub (`python:3.10-trixie`, `node:26-trixie`) and fetches the code from Gitea with git,
 so testing and releasing keep working when GitHub can't be reached.
 
 ### Settings for the Gitea workflows

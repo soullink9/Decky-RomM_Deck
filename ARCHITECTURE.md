@@ -81,7 +81,7 @@ at once are edited under a file lock (`config.editing`, `saves._locked`).
 | `assets/brand/` | The plugin's icon: `icon.svg` is the source, `icon.png` (256 px) and `icon@2x.png` (512 px) are exported from it |
 | `docs/` | The user documentation: the README is the front page, every other page sits in here |
 | `.github/ISSUE_TEMPLATE/` | The bug-report form |
-| `.gitea/workflows/test.yml` | Runs every test on each push to Gitea (backend on Python 3.10, frontend and zip on Node 22), with no actions downloaded from GitHub |
+| `.gitea/workflows/test.yml` | Runs every test on each push to Gitea (backend on Python 3.10, frontend and zip on Node 26), with no actions downloaded from GitHub |
 | `.gitea/workflows/release.yml` | Publishes a release on Gitea (Run workflow button, or a pushed version tag) and adds it to the Decky store; its tag then reaches GitHub through the push mirror |
 | `.gitea/workflows/store.yml` | Every hour: refreshes the Decky store on the `store` branch with the official listing, and lists each release once GitHub has it |
 | `.github/workflows/release.yml` | Publishes the same release on GitHub when a version tag arrives there (or from its own Run workflow button) |

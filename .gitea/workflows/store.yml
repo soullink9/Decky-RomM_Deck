@@ -24,7 +24,7 @@ jobs:
   refresh:
     runs-on: ubuntu-latest
     container:
-      image: python:3.10-bookworm
+      image: python:3.10-trixie
     steps:
       - name: Get the code
         env:

@@ -22,7 +22,7 @@ jobs:
     # Decky runs the backend on its own bundled Python 3.10, so that's the version the tests prove it works on
     runs-on: ubuntu-latest
     container:
-      image: python:3.10-bookworm
+      image: python:3.10-trixie
     steps:
       - name: Get the code
         env:
@@ -43,7 +43,7 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     container:
-      image: node:22-bookworm
+      image: node:26-trixie
     steps:
       - name: Get the code
         env:

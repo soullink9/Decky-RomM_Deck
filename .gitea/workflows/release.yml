@@ -37,7 +37,7 @@ jobs:
     # Decky runs the backend on Python 3.10; the release job's image has a newer Python
     runs-on: ubuntu-latest
     container:
-      image: python:3.10-bookworm
+      image: python:3.10-trixie
     steps:
       - name: Get the code
         env:
@@ -57,7 +57,7 @@ jobs:
     needs: backend-tests
     runs-on: ubuntu-latest
     container:
-      image: node:22-bookworm
+      image: node:26-trixie
     steps:
       - name: Get the code
         env:
