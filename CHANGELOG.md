@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.9 (2026-11-25)
+
+### Maintenance
+
+Build and CI updates only; the plugin itself is unchanged.
+
+- Tests, builds and releases run on Node 26 (the current LTS) instead of Node 22.
+- The Gitea workflows' images move from Debian bookworm to trixie (`python:3.10-trixie`, `node:26-trixie`). The
+  backend is still tested on Python 3.10, the version Decky runs it on.
+- GitHub's release workflow uses `actions/checkout` v7.0.1, `actions/setup-python` v7.1.0 and
+  `actions/setup-node` v7.1.0, still pinned to exact commits.
+- esbuild stays at 0.28.2, already the newest release.
+
 ## 0.5.8 (2026-11-22)
 
 ### Security
