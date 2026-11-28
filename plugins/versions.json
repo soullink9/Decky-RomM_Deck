@@ -1,0 +1,567 @@
+{
+  "XR Gaming": [
+    "1.6.2",
+    "b73c6b697b4f588b789d1d77be27e46512d4aa133df43128bbeafc48b1905892"
+  ],
+  "Example Plugin": [
+    "0.0.1",
+    "0a3f5966e38a745b29ca4ea456ebda518a20fb06075d0cc2990fcc80f58763dc"
+  ],
+  "CSS Loader": [
+    "2.1.3",
+    "99beaf1374af82408e6d056e0b0147e5fca544e1035fa7ab88419231697bc231"
+  ],
+  "System Toolbox": [
+    "v1.0.2-1",
+    "2b6ac8cfec319f0d282ab6afd0cedba0d6213c34ca8c9f8ee1adae99b7dfae69"
+  ],
+  "DeckFAQs": [
+    "1.8.1",
+    "55dd65b4719b27d896e3748ef3ec22628c96814cb03b386320f53716453f3f63"
+  ],
+  "vibrantDeck": [
+    "2.0.1",
+    "272f6f3cd66c5d5c9b50ff46463ad509c8afc014633febd22046ff1aee52ee0f"
+  ],
+  "Fantastic": [
+    "0.5.1",
+    "a70f291d2ba681fb6757c0c7e139d3fadd9a350cf3f755a9a1f668cae18b8b8a"
+  ],
+  "MusicControl": [
+    "1.1.6",
+    "246b89fd653c60a735b1cc401d1b0937d5cb969eea9024561661ff741f081d62"
+  ],
+  "Pause Games": [
+    "1.0.3",
+    "4aefdfb0ef25dea9c6d9fd037731c8b99ee8a1be966c2f7d5b0602112ef29f62"
+  ],
+  "ProtonDB Badges": [
+    "1.3.4",
+    "90a3453ac02709cad64096e7539fd8141fa56f99ae3441fc24a4990dc9684358"
+  ],
+  "FriendsFix": [
+    "0.0.1",
+    "eadd721f4e8fade3e4958ba1c97c983665ca1719450f65055dca7f81b8c1bc82"
+  ],
+  "Audio Loader": [
+    "1.6.1",
+    "fd5a090c2e2cd4da6723d7bd08937ab31b9f8d4663510431713da531343e303f"
+  ],
+  "Bluetooth": [
+    "3.1.1",
+    "f07f7b74f31da15b5e3a8234a3f00faa01365b56b8f496aca7bb79120be7b8a5"
+  ],
+  "Notebook": [
+    "0.1.5",
+    "c35b09de4bba4b4157fbe84cb7b0d20fc3924f78fa3c48ae17686b4314c1cc0c"
+  ],
+  "Remote Play Whatever": [
+    "1.0.0",
+    "caec43ed565e78e68240145da7514c0b85b938a4f1cc53401008107221cfd9ff"
+  ],
+  "PowerTools": [
+    "2.0.3",
+    "47614f53b8c538c4caa15f89a01e4ab106fa328e89f78545bacb3166d104d964"
+  ],
+  "Memory Deck": [
+    "0.1.8",
+    "69f4707c2a0580f64df260fbd3de205e068a825b620769038c7bdaec516c104e"
+  ],
+  "Animation Changer": [
+    "1.3.2",
+    "f2c62b90ca60d8a80b6d0f75d8027552b1509c7a05842c6f4a24a9072846d133"
+  ],
+  "RadiYo!": [
+    "1.3",
+    "647111578aa7a5ecd16af8d7fe6c068a6d7ea8737c6dce5ac2d52e84a549ec43"
+  ],
+  "Bash Shortcuts": [
+    "2.0.3",
+    "e064a32f39915b9927ef5ab8306140fc1ad9bee70b936663429ca80bfc21498e"
+  ],
+  "HLTB for Deck": [
+    "2.0.12",
+    "bd54a23b0b8ec0798aa590e5be236522a593529d7680e77fb888e2971bf3d558"
+  ],
+  "AutoSuspend": [
+    "2.2.0",
+    "20ceb9aa5327226326531d947e4a7a5318ba78b73f503266996a81877cffa536"
+  ],
+  "Emuchievements": [
+    "2.0.5",
+    "98dcb443e81b9f9011cfe77c69eb659869c8e2df2df8b0a443df66cbfc2f5a89"
+  ],
+  "SteamlessTimes": [
+    "1.0.1",
+    "52984b7bfcf949268b44c82edb3a5c3a50d75766a6930faa1ba7f597649b2b21"
+  ],
+  "TunnelDeck": [
+    "1.0.6",
+    "9e1794477fe3a21ec7a42a47ed4145306c029f29ee1ec4ca317fd8a31ca24964"
+  ],
+  "FlatpakUpdater": [
+    "1.0.3-1",
+    "faf365ce9cc07a401395219c97f7e080fbc95083f46480c475ea1c87496d05e1"
+  ],
+  "AutoFlatpaks": [
+    "1.6.8",
+    "344fce82cfb4800caccb4d6c0ec46e1ad6c9594a622d5baa0bb31286baf2d1a5"
+  ],
+  "KLang": [
+    "1.0.4-1",
+    "623ab201a5fe4562b52aac9052579ae9f2c62e4c4c15fd7d3913c28ff2fc2296"
+  ],
+  "MetaDeck": [
+    "2.0.1-1",
+    "4be8d812743a35588a09d3f1cb4dedf8edf069a4adc5d251182b6c3dcc04ac39"
+  ],
+  "MoonDeck": [
+    "1.13.0",
+    "e43ad27e0ecb0c46076791d453e9ec27ae906752a10bc6269d628cc530ea4e19"
+  ],
+  "SteamGridDB": [
+    "1.8.1",
+    "e84f5b1f111af8862b06218479491fbf61036e1bfd9f16f93f9901e9b9ebc5e0"
+  ],
+  "Discord Status": [
+    "1.5.0",
+    "00a45dd919abb6e050685e1e408ce8023b9c4a09d6e91ba528d50aed2a63bf45"
+  ],
+  "Volume Mixer": [
+    "1.2.1-1",
+    "11b259ad234d0e97cfef4e6a2af3f1edfb0908d5482765af56b86b0a4601c5f3"
+  ],
+  "Free Games": [
+    "1.0.1-1",
+    "1ace2eac8f302a1f24863c51b5cf07ec90d95b4fafc681e57c36be28a0e03c89"
+  ],
+  "Controller Tools": [
+    "2.0.2",
+    "9450e54cbf28082d4513838d0dcd42bf04ffc08ae5a6472d0c1f88677782e3ef"
+  ],
+  "ShareDeck-y": [
+    "1.0.0",
+    "a10809f0a19f5b63728714352d52f83fa555c2171a88eebb9fa5357e421a1950"
+  ],
+  "DeckSettings": [
+    "1.3.0-1",
+    "08afce9878a6a13471c9ba155341a11718a3ac2de5b315896c67681602a31bd8"
+  ],
+  "Tailscale Control": [
+    "0.1.3",
+    "06411711b27101d438339000da3d91202d682862710b02ef3ddf2462e642448a"
+  ],
+  "DeckMTP": [
+    "1.0.5",
+    "a60cbe438226109a21a3eabf881a73460bfb9d70871b70a1508cfa17e3fed496"
+  ],
+  "Decky Recorder": [
+    "0.4.1",
+    "299d3c60442b0701db6e8c26b5daa7a88dbd7dd0cfa28012fe734f4def2b5363"
+  ],
+  "Steamback": [
+    "1.0.0-1",
+    "ed5f2fbb47cdfc3aa9a4349a139ab20c29976117a3be0de7e8a588bb265ee7f3"
+  ],
+  "DeckRoulette": [
+    "1.1.6",
+    "356730f705d0166f05552f18c4433d99a1d6c731016388a5d462a4231c7d765c"
+  ],
+  "Quick Launch": [
+    "1.2.1",
+    "709746bfe2a7e19bda54b4de0b3f4a311053de10fa58aa070d421dbf92317ede"
+  ],
+  "Decky Cloud Save": [
+    "1.4.2",
+    "b311d967ddf1b0f0046d36929645855891a40173e3a93f6f0cd8b1576b04b411"
+  ],
+  "Storage Cleaner": [
+    "1.4.0",
+    "1afa1a6f129c5d419de0e0bf0f6db8d8e50385a5659179346e996031ea372591"
+  ],
+  "Network Info": [
+    "1.0.0-1",
+    "9b113accc48cfff4e1d0ef6a7c8aa8b1a5cb301096e4f38d93692cf0ad219e68"
+  ],
+  "Game Theme Music": [
+    "1.7.1-1",
+    "9ce293ab4db212c03c6b96dfbc5e4d92e874d33387463f53223773921f75a80e"
+  ],
+  "Shotty": [
+    "0.1.0",
+    "ab7f6618b264a0cb766525e788cef6c3e1478c0fef98a701225e5e8af441e2fe"
+  ],
+  "Decky Dictation": [
+    "1.0.0",
+    "88d1f0d93a55db7b0c4e192ca1d4740995c39be0cbbfe1bdbd2542766763a148"
+  ],
+  "Bookmarks": [
+    "1.1.0",
+    "cf33c0f270280f13da5153b94d3f56fe7a0a06eb719f3a05fde06fd5a226921f"
+  ],
+  "MangoPeel": [
+    "0.0.7",
+    "71dc21ce5f9f4ee0573bd927e9b444d45dc47327888ca78ed063c7bcc57bfac1"
+  ],
+  "GameView Music": [
+    "1.1.0-1",
+    "440c3ea2009319647c2a1ab87504c084f91f7a787dc63114017584dcaaae1062"
+  ],
+  "Volume Boost": [
+    "0.0.7",
+    "2cc576a7f60751306d690268e227df626e59d3733680ced753de4c116629a9cc"
+  ],
+  "Web Browser": [
+    "1.4.3",
+    "1192864fddc5d72550346b8dff02c21d71f0c40a06ac41c4e67bb6220d267f9d"
+  ],
+  "DeckyFileServer": [
+    "1.2.0",
+    "7dc2ecdcd05aa415d1ac90afaff28ecb17f77809a2bc7a77aee8e92505b976f0"
+  ],
+  "TabMaster": [
+    "2.15.1",
+    "e08333859a32b0c177b8e9a7959c5eeeafe38f946578f7f1d161c721f0e05da5"
+  ],
+  "TS3 QuickAccess": [
+    "1.2.0",
+    "04c853f6e0e20373d1262bf9a57a01f4123598797d73c8a52cdcc64cfe44845c"
+  ],
+  "Free Loader": [
+    "1.6.0",
+    "05208aee6f6ba824391d8ddc81b1168b2599a9711e7528cdaa789f6cc710b42a"
+  ],
+  "Syncthing": [
+    "0.2.7",
+    "27e47379c280c92253d5533435f57c33b332b215f866d2ac4493daf18ec0d1c4"
+  ],
+  "Decky Terminal": [
+    "0.5.3",
+    "7bd8765ca57663a24178b05687acb52c3723518ac9eac1c14419a87904c0a872"
+  ],
+  "PlayTime": [
+    "3.3.2",
+    "724def939c103b37bf66955fe77926e8c2d4810bdeeb6f983d8c8b56296cc749"
+  ],
+  "Battery Tracker": [
+    "0.2.0",
+    "91c388d3c1b52079314045b79671ad55c767510658b6193f6936ed6cad383b94"
+  ],
+  "Wine Cellar": [
+    "0.2.1",
+    "7e077b933c234414d172b5c6d1c804b026bf39fa4e18e6663495a282637031e8"
+  ],
+  "MicroSDeck": [
+    "0.11.2",
+    "adec614a26864f6747245bd78b45c7e4b2fa46200b5e7aa5f55f610d2daad870"
+  ],
+  "Save Manager": [
+    "0.0.1-1",
+    "695864c38f23a44dccb9c6ae3e952d6231ffc3e68ad239a4bafebc636560ecf1"
+  ],
+  "ScreenshotUploader": [
+    "0.0.3",
+    "60152ca9a49b3a7c4fe1ac89a2ccb3bada8c84de2c1869591e6e573165d9dd6d"
+  ],
+  "EmuDecky": [
+    "1.0.2-1",
+    "ff19cac1cab713e7f56bd5b850d5986cef4f2f9933303432e9c66de19868a3ce"
+  ],
+  "KDE Connect": [
+    "0.1.0-1",
+    "5f7decb4de48290f8eec15937486c9611aec0d25256515c97f98cf7ba30c79a4"
+  ],
+  "Reshadeck": [
+    "0.2.0",
+    "f7f79c3f5d12d92d14adfdebad62053d6e10982fb7b662b6777cb06945dc4281"
+  ],
+  "CheatDeck": [
+    "1.1.6",
+    "6dfe1f821b0cfe2a61c95e49efd6cb2587d79ff3d1e101e14fa80c12c7f6d89f"
+  ],
+  "BT Wake Control": [
+    "1.2.0",
+    "baed8ba21589fec8cbeff6c31a83f010664ea3bbeac3d8e71d64e9a9f63fd346"
+  ],
+  "Brightness Bar": [
+    "1.0.4",
+    "d7aaf6481a24c32c847aa1cd64cf23ba6fe73c5dc166587a2303494a42ae0486"
+  ],
+  "Decky Notifications": [
+    "1.0.1",
+    "3b22dc337209615f91da566ceb968793dc163b2e509de8535fb5d0fc55817312"
+  ],
+  "MagicBlack": [
+    "2.0.2",
+    "7177850f8a818783525430b9f2fc4b63f49b9e665a63df2bd8c0abb660d9baad"
+  ],
+  "IsThereAnyDeal for Deck": [
+    "1.1.1",
+    "18e133b2e6203f16fd1ee2ed83b5a90bad34491515bef7ec1c82d525f0bfadef"
+  ],
+  "MagicPods": [
+    "2.0.24",
+    "d95281ba5502cc8e5833ae8b4850aaf0d7d62a019e52852d706b6b1547981302"
+  ],
+  "Junk-Store": [
+    "1.1.13",
+    "f7ad2a0103c85bf308929b2e96ec9aeeb0d76bcc6ae97eb1e4b5f31ffba0cbb1"
+  ],
+  "Decky-Undervolt": [
+    "1.0.8",
+    "2df6f8095acf2c6c71724dbbce8ebd34180880a3411f1a236b5b2143863dbc42"
+  ],
+  "NonSteamLaunchers": [
+    "1.0.0",
+    "33d7dcd0cb9131bc37fb0764b1557c53a6c0961bf4bc8e651a477c5561679c07"
+  ],
+  "ScreenSaver": [
+    "1.1.2",
+    "5e61f20d53e244c55a0375d6299b16cdb9701c222519c7fecd726f1926091822"
+  ],
+  "steamdeck-input-disabler": [
+    "1.0.2",
+    "321426191c123a354d66d5db57dc2a42eb7f3516bab24a294516b606baf94703"
+  ],
+  "DeckySpy": [
+    "0.6.7",
+    "2d431a89826ed5cf3fd37258373eb3b46c841c39795aa8b25f83e59f4eee87c7"
+  ],
+  "Picture in Picture": [
+    "1.0.0",
+    "e0115148305cd216e50bcfec8851fe3d1c6f3d36ae2f92113c199fc1bb2388e3"
+  ],
+  "PlayCount": [
+    "1.7",
+    "d53d0b406d275312e9b6b586815b622c77a6657dfb75256441ba82337c4039b6"
+  ],
+  "Crosshair": [
+    "1.1.0",
+    "19544af369622dac243874de99bc30485d1d8a27241fb05ca299b2d1dd39b2e0"
+  ],
+  "Deck Settings": [
+    "1.2.6",
+    "23c2a933a6883e2622f0184c33a76ce4a4e88c0a7dcd730f9bab71b8c3702132"
+  ],
+  "Decky DoT DNS": [
+    "0.0.2",
+    "0e9ffd3ccc07b12f64541129189fe84184efb9242373d01fbc90395f4d6bfbbc"
+  ],
+  "Decky-SpoofDPI": [
+    "0.12.0",
+    "e37d613ffab3096517aeafd176ab04d86e9c97ea42d32b9eacd6ba1d2bf873ab"
+  ],
+  "Simple Timer": [
+    "1.0.0",
+    "973d927e9d9a1feec04679c564af7e389a729b6735d2a988ffc2cb46ce4eb312"
+  ],
+  "Decky-Framegen": [
+    "0.11.15",
+    "14015d5a652c78b2041fd9668685573840530c306e414aabc0d3cebf95be0642"
+  ],
+  "Decky-Lookup": [
+    "0.1.0",
+    "49309a02fa028d26c77230cc9f70fec9bcce91d59e887bfe8f9d3e42f8a19139"
+  ],
+  "Decky Zerotier": [
+    "0.3.1",
+    "4cacfcf96b11b423af41ec57cea915e26a0dac42fc03432dad1fcded135781a2"
+  ],
+  "Virtual Surround Sound": [
+    "0.0.5",
+    "b6c514d147cc46bad5331ca9da36628eb9c330976e13735687499a4a9f17f6d4"
+  ],
+  "XIVOmega": [
+    "1.0.2",
+    "d2638cd2943eabd2c449234855acc91e92990826cae8516dbb6a624f99b57c81"
+  ],
+  "DeckSP": [
+    "1.1.3",
+    "d6cbedcd64430e1f94a2b12caf936ba270f1ceafe77c6252808ff39c88640b40"
+  ],
+  "Decky Ludusavi": [
+    "1.2.2",
+    "8a69f45aadce763406b5c27bfef194761006d5e01c5e8841badeb13a27dd0d88"
+  ],
+  "Game Sync": [
+    "1.1.4",
+    "d0eba28f4b09780fff31ecd23bf260c2efd3dd8f58606f8658410e84e0f0dfd7"
+  ],
+  "WiFi Locker": [
+    "1.0.2",
+    "4d892785ea5ebdc61e0584eb6c2a594344efd3ce657bbd1f000ba54971a080b6"
+  ],
+  "LetMeReShade": [
+    "1.8",
+    "ae9cf06bb59aa5694409503828d341ae635bde5429a77c766b7256156c1ccc4f"
+  ],
+  "Decky Sunshine": [
+    "2025.10.27-dddf365",
+    "335285d75df623492a04bb1955f6f802075623de985f426d9baaaf0b100ed437"
+  ],
+  "HueSync": [
+    "3.8.0",
+    "96f8400be987d0a080e399eb108f773108eb662fe4875fcb95009dd265c1fb9c"
+  ],
+  "MuraDeck": [
+    "2.1.4",
+    "7957de906e9b6721631fc0cd9a48e9524c1d7bb4371dfb183c391dfdf6d416d4"
+  ],
+  "Dimmer Deck": [
+    "0.0.4",
+    "cb4d9091e0e28277c9e79625323f0898481cb5590d0a7ab58f4d80696225a4fc"
+  ],
+  "Music Control": [
+    "1.1.7",
+    "3f56a3f56034b277ea74a2c37cc84133b69e382aa6bcb0b43876776aac737ed9"
+  ],
+  "Better Keyboard": [
+    "0.3.4",
+    "8e065d37b5c9d7f37203cb2ec9bc6cb54c136b901c998650c7c6ffb30aee8d46"
+  ],
+  "Decky LSFG-VK": [
+    "0.12.2",
+    "ec59fc8aceb4e1abe2066b3a0707ed6313cabc4421b7c17765397903e2f8fd26"
+  ],
+  "Network Sentinel": [
+    "1.0.4",
+    "d3e07f40a0c800e72d15594e03c8c61e9bf3092524a578a0260520e735b971a5"
+  ],
+  "Decky Clash": [
+    "1.3.0",
+    "2b96cc96ad3780a51fa794c250e821e15b3716851f4c96cb3d0a1e2f38890424"
+  ],
+  "Muon": [
+    "0.2.1",
+    "a7659c79b74110476cc4458cb10530cdcb2539fa11bc8c759038a080eaa81049"
+  ],
+  "DeckyParty File Manager": [
+    "1.0.0",
+    "193fb3aa0446fbc3c6bae0ae15700b5f04acebfa917b8e1791988c6ce832dddf"
+  ],
+  "Speed Test": [
+    "1.0.2",
+    "8b1ee429aece9330b83ea3fc2e7e27d007ac61a737169f20bda3f1a19ab95508"
+  ],
+  "Decky Clipboard": [
+    "1.0.1",
+    "d283bd9a5c35b3fac3788391736a6763f3e8c4615831a7c560c9fa6e6c0950ac"
+  ],
+  "Reroll": [
+    "0.2.1",
+    "fb573890f5f87553893c08d6cb2fd8eaf87d54ce54383365e65e545634c55b3c"
+  ],
+  "DeckPass": [
+    "1.1.1",
+    "4be32fd39ce406e2276b21537c98afc00a8ed1b82a23ff0e01af552352fa48f8"
+  ],
+  "Museck": [
+    "0.0.1",
+    "1bd8063a08a4e6439239fd44bf96851fdcce740ab3bf6293e295ee64a8768112"
+  ],
+  "Steam Status": [
+    "1.2.3",
+    "9053308e04a74f44745b45b9f4f50af3673348d367e7b14bacc5677de707ac4e"
+  ],
+  "AlarMe": [
+    "1.6.3",
+    "17d4166a9e98979df5fdb07c7eae42317acd54a453d3b82757508f971193c0fe"
+  ],
+  "Decky Localsend": [
+    "0.4.5",
+    "e271ccb55eb23f918b99a69f79aec905df4c9b2ef7b23bbf4ec1c2d1a6f0c6b7"
+  ],
+  "Launch Options": [
+    "1.9.2",
+    "381ac8b915402176cf768d1ccc1bc29a6b82ea9255675f0a30c0c81ea5427225"
+  ],
+  "Decky Translator": [
+    "0.9.0",
+    "3def99993c412b669933376b6420e44c68cd1fe9d9baf14b77a1f231242bd7e8"
+  ],
+  "Quick User Switcher": [
+    "1.0.0",
+    "187871a139862fc21d70286d8c1b2c2f0f7609604f88fc16415da71c4e56cef9"
+  ],
+  "ShadowDeck": [
+    "1.1.11",
+    "2b97b769a49ac2a45f546090fc96d07e09e146020104d708a0efdad990687f8b"
+  ],
+  "Games Prefix Manager": [
+    "1.0.1",
+    "ef8c727943188cad04c63fae7e4e620b8080c07f35dec0c144e99c6166307473"
+  ],
+  "Download All": [
+    "1.1.0",
+    "0641231eec139e3231e7b5369d0dbacefd686b52e3f2fffb39384876881408da"
+  ],
+  "SuggestMe": [
+    "1.5.3",
+    "248294b5d6b9d5a5d635ce35f4b5185ce59d4e4fd59353e24df4b29d74c2ade4"
+  ],
+  "Non-Steam Badges": [
+    "0.1.0",
+    "9c12b21fd02da12f4c37f9aab68d75172a11787d09c3478f15b4fc97e01df131"
+  ],
+  "Deck Progress Tracker": [
+    "1.3.6",
+    "784c59e7e2a344eb6803d00e341c7d5f10d42cea7b60cc4332f4c3687db14fb3"
+  ],
+  "Deck Shelves": [
+    "2.0.0",
+    "b566280ad38fd3ecd584b5b46a855f301539eb9a86063834c64b7045f7063f91"
+  ],
+  "Decky-Clipper": [
+    "1.0.2",
+    "31d4d66032eb778140b96c0b27e53cb5e969395bca6ffc288b1fa283ecfb2401"
+  ],
+  "Decky Proton Launch": [
+    "0.9.0",
+    "e7b98a7ca8817ef08584ed0828eee8702631af33daccc229075a012eca91f731"
+  ],
+  "Docky": [
+    "1.4.13",
+    "c4f9760724bfdae0581a64252a9504c225f0f9a7fc378b2ade1891e2755aae01"
+  ],
+  "Output Manager": [
+    "1.4.0",
+    "a13202785b57a91462c431bb14c3fbdcbabab00822a197ea592bc375f20a9972"
+  ],
+  "IPv6 Enabler Plugin": [
+    "0.0.1",
+    "0198bdc752ff001ee704a85b15b4d5ad40cf03bdafd0fce67e3c21f01654e36f"
+  ],
+  "DeckyClocker": [
+    "1.0.0",
+    "02a08172c878e9fe92c090df07b271190cc3f7d2b2330d05eedb027122fc7b32"
+  ],
+  "MuteOnSleep": [
+    "1.0.1",
+    "4df068dc0b479a4028c3270bec544dadafe3dea63455ce05926c8dc183350ff9"
+  ],
+  "Desktop Apps": [
+    "0.1.0",
+    "33fb674993c9b2bd119f0c6118c465e379f166ec1539c8183fcf7580f1d89577"
+  ],
+  "Mixer": [
+    "0.1.0",
+    "4b3546170e5fbd5f9afad3b24555498ee51caac7cec9e4c86321b18cdd4b5106"
+  ],
+  "VARTA": [
+    "1.0.21",
+    "7c01464c55d895651295b7fae9b6258ddf570bc84ab3265fe9582102b43fa400"
+  ],
+  "SSH Switch": [
+    "0.2.3",
+    "1f0a62bf005c51ac57bf85cc638e9a0cc0c5fadfe590fe27a3abeed275d0ec01"
+  ],
+  "Pixel Buddy": [
+    "1.0.2",
+    "6c4783ad7696a6db9f39062ffa9f96e12df2f901b683bf381415e8204fa1650b"
+  ],
+  "RomM Deck": [
+    "0.5.9",
+    "871aa8d4134cc11ce662ec2f6941b7537695efa1531697d0b8cc5898430c8dbb",
+    "https://github.com/soullink9/Decky-RomM_Deck/releases/download/v0.5.9/romm-deck.zip"
+  ]
+}
